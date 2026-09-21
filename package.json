@@ -1,0 +1,14 @@
+{
+  "name": "note",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end encrypted clipboard relay",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "vectors": "node tests/make_vectors.mjs",
+    "smoke": "node tests/smoke.mjs"
+  }
+}

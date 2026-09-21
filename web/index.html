@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Note</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Note">
+<meta name="theme-color" content="#11151a">
+<style>
+:root{
+  --bg:#f7f7f5; --card:#fff; --ink:#15181d; --muted:#666f7a; --line:#dfe1e4;
+  --accent:#2f6d4f; --accent-ink:#fff; --warn:#8a5a12; --warn-bg:#fdf3df; --bad:#8c2f2f;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#11151a; --card:#191e25; --ink:#e8eaed; --muted:#9aa4b0; --line:#2a313a;
+    --accent:#4c9c74; --accent-ink:#08120c; --warn:#e6c07a; --warn-bg:#2e2716; --bad:#e08a8a;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+main{max-width:640px; margin:0 auto; padding:20px 16px 56px; padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+h1{font-size:17px; font-weight:600; margin:0; letter-spacing:.01em}
+h2{font-size:15px; font-weight:600; margin:0 0 10px}
+p{margin:0 0 12px; color:var(--muted); font-size:14px}
+header{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px}
+textarea,input[type=text]{
+  width:100%; font:15px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink); background:var(--bg); border:1px solid var(--line);
+  border-radius:9px; padding:11px 12px; resize:vertical;
+}
+textarea{min-height:104px}
+textarea:focus,input[type=text]:focus{outline:2px solid var(--accent); outline-offset:-1px}
+button{
+  font:inherit; font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
+  border:1px solid var(--line); border-radius:9px; padding:11px 16px; cursor:pointer;
+  min-height:44px;
+}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+button.primary:disabled{opacity:.45; cursor:default}
+button.link{background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 4px; min-height:0}
+button.link:hover{color:var(--ink)}
+.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.row.end{justify-content:flex-end}
+.grow{flex:1 1 auto}
+.check{display:flex; gap:9px; align-items:flex-start; font-size:14px; color:var(--muted); margin:12px 0 0; cursor:pointer}
+.check input{margin:3px 0 0; flex:none; width:17px; height:17px}
+.code{
+  font:600 21px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.09em; word-break:break-all; margin:4px 0 12px;
+}
+.note{font-size:13px; color:var(--muted); margin:10px 0 0}
+.banner{border-radius:9px; padding:11px 13px; font-size:14px; margin-bottom:14px}
+.banner.warn{background:var(--warn-bg); color:var(--warn)}
+.banner.bad{background:var(--warn-bg); color:var(--bad)}
+.item{border-top:1px solid var(--line); padding:13px 0; display:flex; gap:12px; align-items:center}
+.item:first-child{border-top:none; padding-top:2px}
+.item .val{flex:1 1 auto; min-width:0}
+.item .lbl{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px}
+.item .txt{
+  font:15px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  word-break:break-all; white-space:pre-wrap;
+}
+.item .txt.masked{color:var(--muted); letter-spacing:.12em}
+.item.done .txt{opacity:.5}
+.item button{padding:9px 13px; font-size:14px}
+.status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
+.status.bad{color:var(--bad)}
+.empty{color:var(--muted); font-size:14px; padding:6px 0}
+@media (max-width:430px){
+  .item{flex-wrap:wrap; gap:9px}
+  .item .val{flex:1 1 100%}
+  .item button{flex:1 1 0}
+}
+footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap:wrap}
+.offscreen{position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none}
+</style>
+</head>
+<body>
+<main>
+
+<div class="screen" data-screen="loading">
+  <p>Loading…</p>
+</div>
+
+<div class="screen" data-screen="pair" hidden>
+  <header><h1>Note</h1></header>
+  <div class="card">
+    <h2>Set up this device</h2>
+    <p id="pair-note">Create a code on your own PC, then type that same code once on the
+       work machine. Add your phone later with the same code if you want it there too.</p>
+    <div class="row">
+      <button class="primary" id="btn-create">Create a new code</button>
+      <button id="btn-have">I have a code</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" data-screen="created" hidden>
+  <header><h1>Note</h1></header>
+  <div class="card">
+    <h2>Your code</h2>
+    <div class="code" id="new-code"></div>
+    <div class="row">
+      <button id="btn-copy-code">Copy code</button>
+      <button id="btn-copy-link">Copy link</button>
+    </div>
+    <p class="note">Save this in your password manager now. It is never stored here and
+       cannot be shown again — losing it means starting over.</p>
+    <p class="note">The link works on any machine you own — open it, or send it to your
+       phone. <strong>On the work machine, type the code instead.</strong> A link lands in
+       browser history and managed-browser reporting, fragment and all.</p>
+    <label class="check"><input type="checkbox" id="chk-saved">
+      <span>I have saved the code</span></label>
+    <div class="row end"><button class="primary" id="btn-created-go" disabled>Continue</button></div>
+  </div>
+  <div class="status" id="created-status"></div>
+</div>
+
+<div class="screen" data-screen="enter" hidden>
+  <header><h1>Note</h1></header>
+  <div class="card">
+    <h2>Enter your code</h2>
+    <input type="text" id="code-input" inputmode="latin" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX">
+    <label class="check"><input type="checkbox" id="chk-remember" checked>
+      <span>Stay signed in on this device. Leave this off on a shared or managed machine —
+        the stored key can read everything sent later, not just what is here now.</span></label>
+    <div class="row end">
+      <button id="btn-enter-back">Back</button>
+      <button class="primary" id="btn-enter-go">Continue</button>
+    </div>
+    <div class="status" id="enter-status"></div>
+  </div>
+</div>
+
+<div class="screen" data-screen="main" hidden>
+  <header>
+    <h1>Note</h1>
+    <button id="btn-refresh">Refresh</button>
+  </header>
+
+  <div class="banner warn" id="stale-banner" hidden>
+    <span id="stale-text"></span>
+    <button class="link" id="btn-stale-show">Show anyway</button>
+  </div>
+
+  <div class="card">
+    <h2>Received <span id="age"></span></h2>
+    <div id="items"></div>
+    <div class="empty" id="items-empty">Nothing here yet.</div>
+    <div class="row end" id="clear-row" hidden>
+      <button class="link" id="btn-clear">Delete from server</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Send</h2>
+    <textarea id="outbox" placeholder="One value per line.&#10;Label: value  →  gives the line a name."
+              autocomplete="off" spellcheck="false"></textarea>
+    <label class="check"><input type="checkbox" id="chk-single">
+      <span>Send as a single value (keep the line breaks)</span></label>
+    <div class="row end"><button class="primary" id="btn-send">Send</button></div>
+    <div class="status" id="send-status"></div>
+  </div>
+
+  <footer>
+    <button class="link" id="btn-repair">New code</button>
+    <button class="link" id="btn-unlink">Unlink this device</button>
+  </footer>
+</div>
+
+</main>
+<script>
+(() => {
+'use strict';
+
+// --- constants (see spec.md; both ends must agree exactly) -------------------
+
+const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';   // Crockford, no I L O U
+const CODE_LEN = 20;
+const BODY_LEN = 19;                                    // 19 x 5 bits = 95 bits
+const ENC = new TextEncoder();
+const DEC = new TextDecoder();
+const SALT = ENC.encode('note/v1');
+const INFO_ROOM = ENC.encode('note/v1 r');
+const INFO_KEY = ENC.encode('note/v1 k');
+const STALE_MS = 60 * 60 * 1000;
+const DB_NAME = 'note';
+const DB_STORE = 'kv';
+const DB_KEY = 'device';
+const MASK = '•'.repeat(10);
+
+const state = {
+  roomKey: null, encKey: null, lastSeq: 0, persist: true,
+  items: [], copied: null, ts: 0, stale: false, revealStale: false,
+};
+
+// --- tiny helpers -----------------------------------------------------------
+
+const $ = (id) => document.getElementById(id);
+
+function show(name) {
+  for (const el of document.querySelectorAll('.screen')) {
+    el.hidden = el.dataset.screen !== name;
+  }
+}
+
+function setStatus(id, message, bad) {
+  const el = $(id);
+  el.textContent = message || '';
+  el.classList.toggle('bad', !!bad);
+}
+
+function b64u(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function unb64u(text) {
+  const padded = text.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded + '='.repeat((4 - padded.length % 4) % 4));
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+async function sha256(bytes) {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+}
+
+function ago(ms) {
+  const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return minutes + (minutes === 1 ? ' minute ago' : ' minutes ago');
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+  return Math.round(hours / 24) + ' days ago';
+}
+
+// --- pairing code -----------------------------------------------------------
+
+async function checkChar(body) {
+  const digest = await sha256(ENC.encode(body));
+  return ALPHABET[digest[0] & 0x1f];
+}
+
+async function newCode() {
+  // 256 is a multiple of 32, so a plain modulo is already uniform here.
+  const random = crypto.getRandomValues(new Uint8Array(BODY_LEN));
+  let body = '';
+  for (const value of random) body += ALPHABET[value % 32];
+  return body + await checkChar(body);
+}
+
+async function normalize(input) {
+  const cleaned = String(input).toUpperCase()
+    .replace(/[^0-9A-Z]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
+  if (cleaned.length !== CODE_LEN) return null;
+  for (const ch of cleaned) if (!ALPHABET.includes(ch)) return null;
+  const body = cleaned.slice(0, BODY_LEN);
+  return cleaned[BODY_LEN] === await checkChar(body) ? cleaned : null;
+}
+
+function grouped(code) {
+  return code.replace(/(.{5})(?=.)/g, '$1-');
+}
+
+// --- keys -------------------------------------------------------------------
+
+async function derive(code) {
+  const base = await crypto.subtle.importKey(
+    'raw', ENC.encode(code), 'HKDF', false, ['deriveBits', 'deriveKey']);
+  const roomKey = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: 'HKDF', hash: 'SHA-256', salt: SALT, info: INFO_ROOM }, base, 128));
+  const encKey = await crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: SALT, info: INFO_KEY }, base,
+    { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  return { roomKey, encKey };
+}
+
+function aad(roomKey, seq) {
+  const out = new Uint8Array(roomKey.length + 8);
+  out.set(roomKey, 0);
+  new DataView(out.buffer).setBigUint64(roomKey.length, BigInt(seq), false);
+  return out;
+}
+
+async function seal(encKey, roomKey, seq, iv, plaintext) {
+  return new Uint8Array(await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, additionalData: aad(roomKey, seq) }, encKey, plaintext));
+}
+
+async function unseal(encKey, roomKey, seq, iv, ciphertext) {
+  return new Uint8Array(await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv, additionalData: aad(roomKey, seq) }, encKey, ciphertext));
+}
+
+// --- storage ----------------------------------------------------------------
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(DB_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function tx(db, mode, run) {
+  return new Promise((resolve, reject) => {
+    const request = run(db.transaction(DB_STORE, mode).objectStore(DB_STORE));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function loadDevice() {
+  try {
+    const db = await openDb();
+    return await tx(db, 'readonly', (s) => s.get(DB_KEY));
+  } catch (err) {
+    return null;
+  }
+}
+
+async function saveDevice() {
+  if (!state.persist) return;
+  try {
+    const db = await openDb();
+    await tx(db, 'readwrite', (s) => s.put({
+      roomKey: state.roomKey, encKey: state.encKey, lastSeq: state.lastSeq,
+    }, DB_KEY));
+  } catch (err) {
+    setStatus('send-status', 'This browser will not keep the key — you will have to ' +
+      'enter the code again next time.', true);
+  }
+}
+
+async function wipeDevice() {
+  try {
+    const db = await openDb();
+    await tx(db, 'readwrite', (s) => s.delete(DB_KEY));
+    db.close();
+  } catch (err) { /* nothing worth reporting; the page reloads either way */ }
+}
+
+// --- transport --------------------------------------------------------------
+
+async function api(path, body) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  });
+  if (response.status === 204) return null;
+  let data = null;
+  try { data = await response.json(); } catch (err) { data = null; }
+  if (!response.ok) {
+    const error = new Error((data && data.error) || ('HTTP ' + response.status));
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+  return data;
+}
+
+const room = () => b64u(state.roomKey);
+
+async function pushRecord(items) {
+  const seq = state.lastSeq + 1;
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = ENC.encode(JSON.stringify({
+    v: 1, ts: Math.floor(Date.now() / 1000), items,
+  }));
+  const ciphertext = await seal(state.encKey, state.roomKey, seq, iv, plaintext);
+  await api('/api/put', { room: room(), seq, iv: b64u(iv), ct: b64u(ciphertext) });
+  state.lastSeq = seq;
+  await saveDevice();
+}
+
+async function send(items) {
+  try {
+    await pushRecord(items);
+  } catch (err) {
+    // Another device wrote while we were away; adopt its sequence and try once more.
+    if (err.status === 409 && err.data && typeof err.data.seq === 'number') {
+      state.lastSeq = err.data.seq;
+      await pushRecord(items);
+    } else {
+      throw err;
+    }
+  }
+}
+
+async function fetchRecord() {
+  const record = await api('/api/get', { room: room() });
+  if (!record) {
+    // The room is empty: cleared, or expired. Drop the rollback floor with it, so a
+    // peer that did not do the clearing is not stuck rejecting the next send.
+    state.lastSeq = 0;
+    await saveDevice();
+    return { kind: 'empty' };
+  }
+  if (record.seq < state.lastSeq) return { kind: 'rollback' };
+
+  let plaintext;
+  try {
+    plaintext = await unseal(state.encKey, state.roomKey, record.seq,
+      unb64u(record.iv), unb64u(record.ct));
+  } catch (err) {
+    return { kind: 'undecryptable' };
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(DEC.decode(plaintext));
+  } catch (err) {
+    return { kind: 'undecryptable' };
+  }
+  const items = Array.isArray(payload && payload.items) ? payload.items.filter(
+    (item) => item && typeof item.text === 'string') : [];
+
+  state.lastSeq = record.seq;
+  await saveDevice();
+  return { kind: 'ok', items, ts: (payload.ts || 0) * 1000 };
+}
+
+// --- clipboard --------------------------------------------------------------
+// writeText has to be reached with no await in front of it or iOS Safari drops the
+// user gesture and silently fails, which is why decrypted text is held in memory.
+
+function legacyCopy(text) {
+  const scratch = document.createElement('textarea');
+  scratch.className = 'offscreen';
+  scratch.value = text;
+  document.body.appendChild(scratch);
+  scratch.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+  scratch.remove();
+  return ok;
+}
+
+function copyNow(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+      return true;
+    }
+  } catch (err) { /* fall through */ }
+  return legacyCopy(text);
+}
+
+// --- rendering --------------------------------------------------------------
+
+function renderItems() {
+  const host = $('items');
+  host.textContent = '';
+  const hasItems = state.items.length > 0;
+  $('items-empty').hidden = hasItems;
+  $('clear-row').hidden = !hasItems;
+  $('age').textContent = hasItems && state.ts ? '· ' + ago(state.ts) : '';
+
+  const hidden = state.stale && !state.revealStale;
+  $('stale-banner').hidden = !(hasItems && hidden);
+  if (hasItems && hidden) {
+    $('stale-text').textContent = 'This was sent ' + ago(state.ts) +
+      '. If you did not just send it, delete it instead.';
+    return;
+  }
+
+  state.items.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'item';
+    const copied = state.copied.has(index);
+    if (copied) row.classList.add('done');
+
+    const value = document.createElement('div');
+    value.className = 'val';
+    if (item.label) {
+      const label = document.createElement('div');
+      label.className = 'lbl';
+      label.textContent = item.label;
+      value.appendChild(label);
+    }
+    const text = document.createElement('div');
+    text.className = 'txt masked';
+    text.textContent = MASK;
+    value.appendChild(text);
+
+    const reveal = document.createElement('button');
+    reveal.textContent = 'Show';
+    reveal.addEventListener('click', () => {
+      const masked = text.classList.toggle('masked');
+      text.textContent = masked ? MASK : item.text;
+      reveal.textContent = masked ? 'Show' : 'Hide';
+    });
+
+    const copy = document.createElement('button');
+    copy.className = 'primary';
+    copy.textContent = copied ? 'Copied' : 'Copy';
+    copy.addEventListener('click', () => {
+      const ok = copyNow(item.text);
+      copy.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+      if (!ok) {
+        text.classList.remove('masked');
+        text.textContent = item.text;
+        reveal.textContent = 'Hide';
+        return;
+      }
+      row.classList.add('done');
+      markCopied(index);
+    });
+
+    row.append(value, reveal, copy);
+    host.appendChild(row);
+  });
+}
+
+async function markCopied(index) {
+  state.copied.add(index);
+  if (state.copied.size < state.items.length) return;
+  // Everything has been taken, so leave nothing behind for whoever images this machine.
+  try {
+    await api('/api/clear', { room: room() });
+    state.lastSeq = 0;
+    state.items = [];
+    state.copied = new Set();
+    await saveDevice();
+    renderItems();
+    setStatus('send-status', 'All copied — deleted from the server.');
+  } catch (err) {
+    setStatus('send-status', 'Copied, but could not delete from the server.', true);
+  }
+}
+
+let lastRefresh = 0;
+
+async function refresh(quiet) {
+  if (!state.roomKey) return;
+  // visibilitychange and focus both fire when you switch back to the tab, and a habit
+  // of alt-tabbing should not spend the room's rate limit.
+  const now = Date.now();
+  if (quiet && now - lastRefresh < 2000) return;
+  lastRefresh = now;
+  try {
+    const result = await fetchRecord();
+    if (result.kind === 'rollback') {
+      setStatus('send-status', 'The server offered an older item than this device has ' +
+        'already seen. Ignored.', true);
+      return;
+    }
+    if (result.kind === 'undecryptable') {
+      state.items = [];
+      state.copied = new Set();
+      renderItems();
+      setStatus('send-status', 'Could not decrypt this item — the other device may be ' +
+        'using a different code.', true);
+      return;
+    }
+    if (result.kind === 'empty') {
+      state.items = [];
+      state.copied = new Set();
+      state.stale = false;
+      renderItems();
+      if (!quiet) setStatus('send-status', 'Nothing on the server.');
+      return;
+    }
+    state.items = result.items;
+    state.ts = result.ts;
+    state.copied = new Set();
+    state.stale = result.ts > 0 && (Date.now() - result.ts) > STALE_MS;
+    state.revealStale = false;
+    renderItems();
+    if (!quiet) setStatus('send-status', '');
+  } catch (err) {
+    setStatus('send-status', err.status === 429
+      ? 'Too many requests — wait a moment.'
+      : 'Could not reach the server.', true);
+  }
+}
+
+// --- outgoing text ----------------------------------------------------------
+
+function parseItems(text, single) {
+  const trimmed = text.replace(/\s+$/, '');
+  if (!trimmed) return [];
+  if (single) return [{ label: '', text: trimmed }];
+  const items = [];
+  for (const raw of trimmed.split(/\r?\n/)) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) continue;
+    // Requires whitespace after the colon, so "https://host" is not read as a label.
+    const match = /^([A-Za-z][\w .\-]{0,23}):[ \t]+(\S.*)$/.exec(line);
+    if (match) items.push({ label: match[1].trim(), text: match[2] });
+    else items.push({ label: '', text: line });
+  }
+  return items;
+}
+
+// --- session ----------------------------------------------------------------
+
+async function activate(code, persist) {
+  const keys = await derive(code);
+  state.roomKey = keys.roomKey;
+  state.encKey = keys.encKey;
+  state.persist = persist;
+  state.lastSeq = 0;
+  state.items = [];
+  state.copied = new Set();
+  if (persist) {
+    await saveDevice();
+    if (navigator.storage && navigator.storage.persist) {
+      try { await navigator.storage.persist(); } catch (err) { /* best effort */ }
+    }
+  }
+  show('main');
+  renderItems();
+  await refresh(true);
+}
+
+async function resume() {
+  const saved = await loadDevice();
+  if (!saved || !saved.roomKey || !saved.encKey) return false;
+  state.roomKey = saved.roomKey instanceof Uint8Array
+    ? saved.roomKey : new Uint8Array(saved.roomKey);
+  state.encKey = saved.encKey;
+  state.lastSeq = saved.lastSeq || 0;
+  state.persist = true;
+  state.copied = new Set();
+  show('main');
+  renderItems();
+  await refresh(true);
+  return true;
+}
+
+// --- test hook --------------------------------------------------------------
+// Inert in a browser, where document is always defined. It exists so the vector
+// harness runs this exact code rather than a second implementation of it that
+// could drift from what actually ships.
+
+if (typeof document === 'undefined') {
+  globalThis.__noteCore = {
+    ALPHABET, CODE_LEN, BODY_LEN, checkChar, newCode, normalize, grouped,
+    derive, aad, seal, unseal, parseItems, b64u, unb64u,
+  };
+  return;
+}
+
+// --- wiring -----------------------------------------------------------------
+
+let pendingCode = null;
+let pendingIsRotation = false;
+
+function showCreated(code, isRotation) {
+  pendingCode = code;
+  pendingIsRotation = isRotation;
+  $('new-code').textContent = grouped(code);
+  $('chk-saved').checked = false;
+  $('btn-created-go').disabled = true;
+  setStatus('created-status', '');
+  show('created');
+}
+
+$('btn-create').addEventListener('click', async () => {
+  showCreated(await newCode(), false);
+});
+
+$('btn-have').addEventListener('click', () => {
+  setStatus('enter-status', '');
+  $('code-input').value = '';
+  show('enter');
+  $('code-input').focus();
+});
+
+$('chk-saved').addEventListener('change', (event) => {
+  $('btn-created-go').disabled = !event.target.checked;
+});
+
+$('btn-copy-code').addEventListener('click', () => {
+  $('btn-copy-code').textContent = copyNow(grouped(pendingCode)) ? 'Copied' : 'Select it manually';
+});
+
+$('btn-copy-link').addEventListener('click', () => {
+  const link = location.origin + '/#' + pendingCode;
+  $('btn-copy-link').textContent = copyNow(link) ? 'Copied' : 'Select it manually';
+});
+
+$('btn-created-go').addEventListener('click', async () => {
+  const code = pendingCode;
+  try {
+    if (pendingIsRotation && state.roomKey) {
+      try { await api('/api/clear', { room: room() }); } catch (err) { /* old room may be gone */ }
+      await wipeDevice();
+    }
+    await activate(code, true);
+  } catch (err) {
+    setStatus('created-status', 'Could not set up this device.', true);
+  }
+});
+
+$('btn-enter-back').addEventListener('click', () => show('pair'));
+
+$('btn-enter-go').addEventListener('click', async () => {
+  const code = await normalize($('code-input').value);
+  if (!code) {
+    setStatus('enter-status', 'That code does not look right — check for a typo.', true);
+    return;
+  }
+  setStatus('enter-status', '');
+  try {
+    await activate(code, $('chk-remember').checked);
+  } catch (err) {
+    setStatus('enter-status', 'Could not set up this device.', true);
+  }
+});
+
+$('code-input').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') $('btn-enter-go').click();
+});
+
+$('btn-refresh').addEventListener('click', () => refresh(false));
+$('btn-stale-show').addEventListener('click', () => {
+  state.revealStale = true;
+  renderItems();
+});
+
+$('btn-clear').addEventListener('click', async () => {
+  try {
+    await api('/api/clear', { room: room() });
+    state.lastSeq = 0;
+    state.items = [];
+    state.copied = new Set();
+    await saveDevice();
+    renderItems();
+    setStatus('send-status', 'Deleted from the server.');
+  } catch (err) {
+    setStatus('send-status', 'Could not delete from the server.', true);
+  }
+});
+
+$('btn-send').addEventListener('click', async () => {
+  const items = parseItems($('outbox').value, $('chk-single').checked);
+  if (!items.length) {
+    setStatus('send-status', 'Nothing to send.', true);
+    return;
+  }
+  $('btn-send').disabled = true;
+  setStatus('send-status', 'Sending…');
+  try {
+    await send(items);
+    $('outbox').value = '';
+    setStatus('send-status', 'Sent ' + items.length +
+      (items.length === 1 ? ' value.' : ' values.'));
+  } catch (err) {
+    setStatus('send-status', err.status === 429
+      ? 'Too many requests — wait a moment.'
+      : 'Could not reach the server.', true);
+  } finally {
+    $('btn-send').disabled = false;
+  }
+});
+
+$('btn-repair').addEventListener('click', async () => {
+  showCreated(await newCode(), true);
+});
+
+$('btn-unlink').addEventListener('click', async () => {
+  try { await api('/api/clear', { room: room() }); } catch (err) { /* best effort */ }
+  await wipeDevice();
+  location.replace(location.origin + '/');
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.roomKey) refresh(true);
+});
+window.addEventListener('focus', () => { if (state.roomKey) refresh(true); });
+
+// --- boot -------------------------------------------------------------------
+
+(async () => {
+  if (!crypto || !crypto.subtle) {
+    // Either the page is not on HTTPS, or policy has disabled WebCrypto. Encrypting
+    // in the browser is the whole design, so there is no degraded mode to offer.
+    $('pair-note').textContent = 'This browser will not let the page encrypt anything, ' +
+      'so it cannot be used here. That usually means the site was opened over plain ' +
+      'HTTP rather than HTTPS.';
+    $('btn-create').disabled = true;
+    $('btn-have').disabled = true;
+    show('pair');
+    return;
+  }
+
+  const fromLink = location.hash ? await normalize(location.hash.slice(1)) : null;
+  if (fromLink) {
+    // Strip it before anything else can read it back off the address bar.
+    history.replaceState(null, '', location.pathname);
+    try {
+      await activate(fromLink, true);
+      return;
+    } catch (err) { /* fall through to the pairing screen */ }
+  }
+
+  if (await resume()) return;
+  show('pair');
+})();
+
+})();
+</script>
+</body>
+</html>

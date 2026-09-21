@@ -1,0 +1,21 @@
+{
+	admin off
+}
+
+{$NOTE_DOMAIN} {
+	encode zstd gzip
+
+	# Request bodies are never logged by Caddy, and there is nothing sensitive in a
+	# path here, but there is also no reason to keep a record of who showed up when.
+	log {
+		output discard
+	}
+
+	request_body {
+		max_size 96KB
+	}
+
+	reverse_proxy app:8080 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

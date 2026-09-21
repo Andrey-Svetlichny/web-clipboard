@@ -1,0 +1,190 @@
+{
+  "codes": [
+    {
+      "body": "0123456789ABCDEFGHJ",
+      "code": "0123456789ABCDEFGHJF",
+      "room_key": "b1093261f9f2f37682c5d331969fe594"
+    },
+    {
+      "body": "ZZZZZZZZZZZZZZZZZZZ",
+      "code": "ZZZZZZZZZZZZZZZZZZZJ",
+      "room_key": "43c8af9662f9a01624863658c7c73ea3"
+    },
+    {
+      "body": "0000000000000000000",
+      "code": "00000000000000000006",
+      "room_key": "747553d0dc83fa94bf6a24553f1547b6"
+    },
+    {
+      "body": "KMNPQRSTVWXYZ0123AB",
+      "code": "KMNPQRSTVWXYZ0123ABJ",
+      "room_key": "229265d29832829f1c0a05586c6e50c6"
+    }
+  ],
+  "records": [
+    {
+      "code": "0123456789ABCDEFGHJF",
+      "seq": 1,
+      "iv": "132435465768798a9bacbdce",
+      "plaintext": "{\"v\":1,\"ts\":1757808000,\"items\":[{\"label\":\"IBAN\",\"text\":\"DE89370400440532013000\"}]}",
+      "ct": "360fd92575811aff91a028bc96b375915e4e2243f76ba7d93a35ebda7123c13cf4dd25c7f53373d723970253913df20429b9f68635227895c478b9946fc61d7d8c4bc41deb49856e2081062bff9d460a3428d49831ec93ea2cf4c3f64c8a81839058",
+      "aad": "b1093261f9f2f37682c5d331969fe5940000000000000001"
+    },
+    {
+      "code": "0123456789ABCDEFGHJF",
+      "seq": 4096,
+      "iv": "18293a4b5c6d7e8fa0b1c2d3",
+      "plaintext": "{\"v\":1,\"ts\":1,\"items\":[{\"label\":\"\",\"text\":\"p\\u00e4sswörd — 🔑\"}]}",
+      "ct": "1f7eb8884afb4848c792baf6ec3d5e3328718c5834340a2db448cc19d1ae7a6384510cbd33cc3543599fe0f9f6fb172c7f0384a196a1cbd0cd3b904d02a3b6f1275528fd226de8e6c4bdc12a24a3795e0067461d9272",
+      "aad": "b1093261f9f2f37682c5d331969fe5940000000000001000"
+    },
+    {
+      "code": "ZZZZZZZZZZZZZZZZZZZJ",
+      "seq": 1,
+      "iv": "132435465768798a9bacbdce",
+      "plaintext": "{\"v\":1,\"ts\":1757808000,\"items\":[{\"label\":\"IBAN\",\"text\":\"DE89370400440532013000\"}]}",
+      "ct": "65092ac348c7d6989adfe02f5ba670715ee0c83de38bbf3a8c910c4d92f610fc8bb9904a157439a810ecb4dbd21b34172e4514ddcd034768034f13ea3c7c4655182216eeb5f28ab0a19a48b1aff3300d6a1097bf78dbed54bd7c4368afba52f01584",
+      "aad": "43c8af9662f9a01624863658c7c73ea30000000000000001"
+    },
+    {
+      "code": "ZZZZZZZZZZZZZZZZZZZJ",
+      "seq": 4096,
+      "iv": "18293a4b5c6d7e8fa0b1c2d3",
+      "plaintext": "{\"v\":1,\"ts\":1,\"items\":[{\"label\":\"\",\"text\":\"p\\u00e4sswörd — 🔑\"}]}",
+      "ct": "fc5e6d1da042de4716aeeb95064e460dfcb51ccbdb33de1b0b18b543f1b2d957de0d945701003298c625b7b8ab1b3cff51375df55d3e88cdacefd7b55a99563cf9e41b798838dc905a7a73e26ed801c2497f3a8b9e49",
+      "aad": "43c8af9662f9a01624863658c7c73ea30000000000001000"
+    },
+    {
+      "code": "00000000000000000006",
+      "seq": 1,
+      "iv": "132435465768798a9bacbdce",
+      "plaintext": "{\"v\":1,\"ts\":1757808000,\"items\":[{\"label\":\"IBAN\",\"text\":\"DE89370400440532013000\"}]}",
+      "ct": "74c5abbafe78bcf3598a212f72e1e80822798e26b38643179589994b72cc1196c8989536475757b92ce56f459cf9ce5d2423ba4193f24203c9d407ab40a5d2a4628a46dbf6160f09e8942bafa1ac7951472bfef9905abed040c1de1bff2a4c6b6265",
+      "aad": "747553d0dc83fa94bf6a24553f1547b60000000000000001"
+    },
+    {
+      "code": "00000000000000000006",
+      "seq": 4096,
+      "iv": "18293a4b5c6d7e8fa0b1c2d3",
+      "plaintext": "{\"v\":1,\"ts\":1,\"items\":[{\"label\":\"\",\"text\":\"p\\u00e4sswörd — 🔑\"}]}",
+      "ct": "4cab5aaa2cbff99220d6c1936e4f7abddd6c2c05b42721eaaf795e2b3768b97c24e1a945c8e2c788ef9867d9617fb97ecef781bc71aecbdfe7e05dcb80c9557b14e6796fc29951a0e28952bf770aa9fb6d34a9f2b88f",
+      "aad": "747553d0dc83fa94bf6a24553f1547b60000000000001000"
+    },
+    {
+      "code": "KMNPQRSTVWXYZ0123ABJ",
+      "seq": 1,
+      "iv": "132435465768798a9bacbdce",
+      "plaintext": "{\"v\":1,\"ts\":1757808000,\"items\":[{\"label\":\"IBAN\",\"text\":\"DE89370400440532013000\"}]}",
+      "ct": "16e63766379862b81db4a0dd6dd9cc55bd3368a993cb57e62082a86b52cbc8d7f556cce2ab6566043b8d576674e1929df19b5a05d87e3e3706d2e96f9447353e53dbb0ed49d7d62302dacb51026b7ee3920da9a4f3bfc2abee7ca5146a037e24ffa0",
+      "aad": "229265d29832829f1c0a05586c6e50c60000000000000001"
+    },
+    {
+      "code": "KMNPQRSTVWXYZ0123ABJ",
+      "seq": 4096,
+      "iv": "18293a4b5c6d7e8fa0b1c2d3",
+      "plaintext": "{\"v\":1,\"ts\":1,\"items\":[{\"label\":\"\",\"text\":\"p\\u00e4sswörd — 🔑\"}]}",
+      "ct": "633dab6c8f16174aeb2909e62c165451d0bba8aa18c9158ee372505c0a4009de6a32f1195ddeb664c36a0d883622df3cd908a3b76e834a31f737fc46f856d06e78201f4c04d277716acab371723f4670f687d44fc72a",
+      "aad": "229265d29832829f1c0a05586c6e50c60000000000001000"
+    }
+  ],
+  "normalize": [
+    {
+      "input": "0123456789ABCDEFGHJF",
+      "output": "0123456789ABCDEFGHJF"
+    },
+    {
+      "input": "0123456789abcdefghjf",
+      "output": "0123456789ABCDEFGHJF"
+    },
+    {
+      "input": "01234-56789-ABCDE-FGHJF",
+      "output": "0123456789ABCDEFGHJF"
+    },
+    {
+      "input": "  0 1 2 3 4 5 6 7 8 9 A B C D E F G H J F  ",
+      "output": "0123456789ABCDEFGHJF"
+    },
+    {
+      "input": "OI23456789ABCDEFGHJF",
+      "output": "0123456789ABCDEFGHJF"
+    },
+    {
+      "input": "ol23456789ABCDEFGHJF",
+      "output": "0123456789ABCDEFGHJF"
+    },
+    {
+      "input": "0123456789ABCDEFGHJ",
+      "output": null
+    },
+    {
+      "input": "0123456789ABCDEFGHJFZ",
+      "output": null
+    },
+    {
+      "input": "0123456789ABCDEFGHJZ",
+      "output": null
+    },
+    {
+      "input": "0123456789ABCDEFGHUU",
+      "output": null
+    }
+  ],
+  "parse": [
+    {
+      "text": "IBAN: DE89 3704 0044 0532 0130 00\nBIC: COBADEFFXXX\nhunter2",
+      "single": false,
+      "items": [
+        {
+          "label": "IBAN",
+          "text": "DE89 3704 0044 0532 0130 00"
+        },
+        {
+          "label": "BIC",
+          "text": "COBADEFFXXX"
+        },
+        {
+          "label": "",
+          "text": "hunter2"
+        }
+      ]
+    },
+    {
+      "text": "https://example.com/x\n\n  spaced   \n",
+      "single": false,
+      "items": [
+        {
+          "label": "",
+          "text": "https://example.com/x"
+        },
+        {
+          "label": "",
+          "text": "  spaced"
+        }
+      ]
+    },
+    {
+      "text": "line one\nline two",
+      "single": true,
+      "items": [
+        {
+          "label": "",
+          "text": "line one\nline two"
+        }
+      ]
+    },
+    {
+      "text": "Ref no.: 99\nA: b",
+      "single": false,
+      "items": [
+        {
+          "label": "Ref no.",
+          "text": "99"
+        },
+        {
+          "label": "A",
+          "text": "b"
+        }
+      ]
+    }
+  ]
+}
