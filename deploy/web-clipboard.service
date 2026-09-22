@@ -1,0 +1,44 @@
+# systemd unit for running web-clipboard without Docker, behind the host's nginx.
+#
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin web-clipboard
+#   sudo mkdir -p /var/lib/web-clipboard && sudo chown web-clipboard /var/lib/web-clipboard
+#   sudo cp deploy/web-clipboard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now web-clipboard
+#
+# Requires Node >= 22.5 for node:sqlite; Ubuntu's own nodejs package is older, see
+# README.md. Then install deploy/nginx-web-clipboard.conf exactly as in the Docker path:
+# nginx proxies to 127.0.0.1:8080 either way.
+
+[Unit]
+Description=web-clipboard — end-to-end encrypted clipboard relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=web-clipboard
+WorkingDirectory=/opt/web-clipboard
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/index.mjs
+
+# Listen on loopback only. nginx is the sole path in from outside; without this the
+# port would be reachable on every interface, unencrypted.
+Environment=HOST=127.0.0.1
+Environment=PORT=8080
+Environment=CLIPBOARD_DB=/var/lib/web-clipboard/web-clipboard.db
+# Environment=CLIPBOARD_TTL_SECONDS=86400
+
+Restart=always
+RestartSec=2
+
+# The process needs to read /opt/web-clipboard and write exactly one directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/web-clipboard
+RestrictAddressFamilies=AF_INET AF_INET6
+MemoryDenyWriteExecute=no
+
+[Install]
+WantedBy=multi-user.target
