@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Defaults match server/index.mjs; override here if you want a shorter expiry.
+      CLIPBOARD_TTL_SECONDS: ${CLIPBOARD_TTL_SECONDS:-86400}
+    volumes:
+      - clipboard-data:/data
+    # Localhost only: the host's nginx terminates TLS and proxies here. Without the
+    # 127.0.0.1 prefix Docker would publish this on every interface, and its NAT rules
+    # sit in front of ufw — the port would be open to the internet unencrypted.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  clipboard-data:

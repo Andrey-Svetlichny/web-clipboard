@@ -12,7 +12,7 @@ const IV = Buffer.alloc(12, 0x00).toString('base64url');
 const CT = Buffer.alloc(40, 0x09).toString('base64url');
 
 async function withApp(t, run) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'note-api-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'clipboard-api-'));
   const app = createApp({ dbPath: path.join(dir, 'api.db') });
   await new Promise((resolve) => app.server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${app.server.address().port}`;

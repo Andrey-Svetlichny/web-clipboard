@@ -63,7 +63,7 @@ test('normalisation accepts every confusable spelling of one code', () => {
 test('vectors.json is not stale', () => {
   // Regenerating and comparing means editing the page's crypto without refreshing the
   // vectors fails here, instead of passing against a stale file.
-  const fresh = path.join(mkdtempSync(path.join(tmpdir(), 'note-')), 'vectors.json');
+  const fresh = path.join(mkdtempSync(path.join(tmpdir(), 'clipboard-')), 'vectors.json');
   execFileSync(process.execPath, [path.join(ROOT, 'tests', 'make_vectors.mjs'), fresh], {
     cwd: ROOT,
     stdio: 'pipe',

@@ -11,9 +11,9 @@ export const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const CODE_LEN = 20;
 export const BODY_LEN = 19;
 
-const SALT = Buffer.from('note/v1');
-const INFO_ROOM = Buffer.from('note/v1 r');
-const INFO_KEY = Buffer.from('note/v1 k');
+const SALT = Buffer.from('web-clipboard/v1');
+const INFO_ROOM = Buffer.from('web-clipboard/v1 r');
+const INFO_KEY = Buffer.from('web-clipboard/v1 k');
 
 export function hkdf(ikm, salt, info, length) {
   const prk = createHmac('sha256', salt).update(ikm).digest();

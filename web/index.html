@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Note</title>
+<title>Web Clipboard</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Note">
+<meta name="apple-mobile-web-app-title" content="Web Clipboard">
 <meta name="theme-color" content="#11151a">
 <style>
 :root{
@@ -96,7 +96,7 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="pair" hidden>
-  <header><h1>Note</h1></header>
+  <header><h1>Web Clipboard</h1></header>
   <div class="card">
     <h2>Set up this device</h2>
     <p id="pair-note">Create a code on your own PC, then type that same code once on the
@@ -109,7 +109,7 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="created" hidden>
-  <header><h1>Note</h1></header>
+  <header><h1>Web Clipboard</h1></header>
   <div class="card">
     <h2>Your code</h2>
     <div class="code" id="new-code"></div>
@@ -130,7 +130,7 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="enter" hidden>
-  <header><h1>Note</h1></header>
+  <header><h1>Web Clipboard</h1></header>
   <div class="card">
     <h2>Enter your code</h2>
     <input type="text" id="code-input" inputmode="latin" autocomplete="off"
@@ -148,7 +148,7 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 
 <div class="screen" data-screen="main" hidden>
   <header>
-    <h1>Note</h1>
+    <h1>Web Clipboard</h1>
     <button id="btn-refresh">Refresh</button>
   </header>
 
@@ -194,11 +194,11 @@ const CODE_LEN = 20;
 const BODY_LEN = 19;                                    // 19 x 5 bits = 95 bits
 const ENC = new TextEncoder();
 const DEC = new TextDecoder();
-const SALT = ENC.encode('note/v1');
-const INFO_ROOM = ENC.encode('note/v1 r');
-const INFO_KEY = ENC.encode('note/v1 k');
+const SALT = ENC.encode('web-clipboard/v1');
+const INFO_ROOM = ENC.encode('web-clipboard/v1 r');
+const INFO_KEY = ENC.encode('web-clipboard/v1 k');
 const STALE_MS = 60 * 60 * 1000;
-const DB_NAME = 'note';
+const DB_NAME = 'web-clipboard';
 const DB_STORE = 'kv';
 const DB_KEY = 'device';
 const MASK = '•'.repeat(10);
@@ -660,7 +660,7 @@ async function resume() {
 // could drift from what actually ships.
 
 if (typeof document === 'undefined') {
-  globalThis.__noteCore = {
+  globalThis.__clipboardCore = {
     ALPHABET, CODE_LEN, BODY_LEN, checkChar, newCode, normalize, grouped,
     derive, aad, seal, unseal, parseItems, b64u, unb64u,
   };

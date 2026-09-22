@@ -1,6 +1,6 @@
 {
-  "name": "Note",
-  "short_name": "Note",
+  "name": "Web Clipboard",
+  "short_name": "Clipboard",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

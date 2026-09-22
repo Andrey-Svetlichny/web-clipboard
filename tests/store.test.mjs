@@ -13,7 +13,7 @@ const IV = Buffer.alloc(12, 0x00);
 const CT = Buffer.alloc(32, 0x03);
 
 function freshStore(ttlSeconds = 3600) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'note-store-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'clipboard-store-'));
   const file = path.join(dir, 'test.db');
   return { store: new Store(file, ttlSeconds), file };
 }

@@ -1,4 +1,4 @@
-# note
+# web-clipboard
 
 An end-to-end encrypted web clipboard for sharing text between Computers, phones, etc.
 
@@ -11,12 +11,56 @@ not much else.
 Host with a domain pointed at it, and Docker. Nothing else: the server has no
 dependencies, and there is no build step.
 
-### Important: in .env set NOTE_DOMAIN
+On Ubuntu, `docker.io` alone is not enough — it ships neither compose nor buildx:
+
+```sh
+sudo apt-get install -y docker.io docker-compose-v2 docker-buildx
+```
+
+Copy the whole directory to `/opt/web-clipboard` on the server: compose resolves
+`build: .` and the config mounts relative to it, so the files have to stay together.
+`tests/` and `.git` are not needed at runtime.
+
+### Important: in .env set CLIPBOARD_DOMAIN
+
+Point an `A` record at the server first — TLS issuance fails until the name resolves.
+
+### If nothing else uses port 443
+
+Use Caddy, which obtains a TLS certificate on first request and renews it by itself.
+Restore the `caddy` service in `docker-compose.yml` (it is in git history), then:
+
 ```sh
 docker compose up -d --build
 ```
 
-Caddy obtains a TLS certificate on first request and renews it by itself.
+### Without Docker
+
+The server has no dependencies, so systemd runs it directly. It needs Node >= 22.5 for
+`node:sqlite`, which is newer than Ubuntu's `nodejs` package:
+
+```sh
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+Then follow the header of `deploy/web-clipboard.service`. nginx is configured exactly as
+below either way — both paths put the app on `127.0.0.1:8080`.
+
+### If the server already runs nginx
+
+Caddy cannot share port 443, so let nginx terminate TLS and proxy to the app. This is
+what `docker-compose.yml` is set up for as committed: it publishes the app on
+`127.0.0.1:8080` and starts no Caddy.
+
+```sh
+docker compose up -d --build
+sudo cp deploy/nginx-web-clipboard.conf /etc/nginx/sites-available/web-clipboard
+sudo ln -s /etc/nginx/sites-available/web-clipboard /etc/nginx/sites-enabled/
+# edit server_name in that file to your hostname
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d notes.example.com
+```
 
 Then open `https://<your domain>` on your PC, choose **Create a new code**, and save the
 code in your password manager. On the work VM, open the same address, choose **I have a

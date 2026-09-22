@@ -9,7 +9,7 @@ const base = (process.argv[2] || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(path.join(root, 'web', 'index.html'), 'utf8');
 new Function(/<script[^>]*>([\s\S]*?)<\/script>/.exec(html)[1])();
-const core = globalThis.__noteCore;
+const core = globalThis.__clipboardCore;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

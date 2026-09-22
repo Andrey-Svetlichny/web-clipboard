@@ -1,4 +1,4 @@
-// note — a zero-knowledge relay for one encrypted record per room.
+// web-clipboard — a zero-knowledge relay for one encrypted record per room.
 //
 // The server is deliberately incurious: it stores an opaque blob under the hash of a key
 // it never keeps, and hands it back to whoever proves they have that key. See spec.md.
@@ -259,11 +259,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const port = Number(process.env.PORT ?? 8080);
   const host = process.env.HOST ?? '0.0.0.0';
   const { server } = createApp({
-    dbPath: process.env.NOTE_DB ?? '/data/note.db',
-    ttlSeconds: Number(process.env.NOTE_TTL_SECONDS ?? 24 * 60 * 60),
+    dbPath: process.env.CLIPBOARD_DB ?? '/data/web-clipboard.db',
+    ttlSeconds: Number(process.env.CLIPBOARD_TTL_SECONDS ?? 24 * 60 * 60),
   });
 
-  server.listen(port, host, () => console.log(`note listening on ${host}:${port}`));
+  server.listen(port, host, () => console.log(`web-clipboard listening on ${host}:${port}`));
 
   for (const signal of ['SIGTERM', 'SIGINT']) {
     process.on(signal, () => server.close(() => process.exit(0)));

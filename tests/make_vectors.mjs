@@ -14,7 +14,7 @@ if (!block) throw new Error('no inline <script> block in web/index.html');
 // document is undefined here, so the page script exports its core and stops before
 // touching the DOM. See the "test hook" section in index.html.
 new Function(block[1])();
-const core = globalThis.__noteCore;
+const core = globalThis.__clipboardCore;
 if (!core) throw new Error('index.html did not export its core — test hook missing?');
 
 const encoder = new TextEncoder();
