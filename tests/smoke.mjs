@@ -41,9 +41,10 @@ const room = core.b64u(keys.roomKey);
 
 check('room starts empty', (await api('get', { room })).status === 204);
 
-const items = core.parseItems('IBAN: DE89370400440532013000\nBIC: COBADEFFXXX\nhunter2', false);
-check('three lines parse into three items', items.length === 3,
-  JSON.stringify(items.map((i) => i.label)));
+const items = core.parseItems('IBAN: DE89370400440532013000\nBIC: COBADEFFXXX\nhunter2');
+check('the whole box is one item with its line breaks kept',
+  items.length === 1 && items[0].text.split('\n').length === 3,
+  JSON.stringify(items));
 
 const seq = 1;
 const iv = crypto.getRandomValues(new Uint8Array(12));

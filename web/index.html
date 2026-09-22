@@ -14,12 +14,12 @@
 <style>
 :root{
   --bg:#f7f7f5; --card:#fff; --ink:#15181d; --muted:#666f7a; --line:#dfe1e4;
-  --accent:#2f6d4f; --accent-ink:#fff; --warn:#8a5a12; --warn-bg:#fdf3df; --bad:#8c2f2f;
+  --accent:#2f6d4f; --accent-ink:#fff; --bad:#8c2f2f;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#11151a; --card:#191e25; --ink:#e8eaed; --muted:#9aa4b0; --line:#2a313a;
-    --accent:#4c9c74; --accent-ink:#08120c; --warn:#e6c07a; --warn-bg:#2e2716; --bad:#e08a8a;
+    --accent:#4c9c74; --accent-ink:#08120c; --bad:#e08a8a;
   }
 }
 *{box-sizing:border-box}
@@ -40,7 +40,7 @@ textarea,input[type=text]{
   color:var(--ink); background:var(--bg); border:1px solid var(--line);
   border-radius:9px; padding:11px 12px; resize:vertical;
 }
-textarea{min-height:104px}
+textarea{min-height:180px}
 textarea:focus,input[type=text]:focus{outline:2px solid var(--accent); outline-offset:-1px}
 button{
   font:inherit; font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
@@ -50,6 +50,8 @@ button{
 button:hover{border-color:var(--muted)}
 button.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
 button.primary:disabled{opacity:.45; cursor:default}
+button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center}
+button.icon svg{width:21px; height:21px; display:block; fill:currentColor}
 button.link{background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 4px; min-height:0}
 button.link:hover{color:var(--ink)}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
@@ -62,23 +64,8 @@ button.link:hover{color:var(--ink)}
   letter-spacing:.09em; word-break:break-all; margin:4px 0 12px;
 }
 .note{font-size:13px; color:var(--muted); margin:10px 0 0}
-.banner{border-radius:9px; padding:11px 13px; font-size:14px; margin-bottom:14px}
-.banner.warn{background:var(--warn-bg); color:var(--warn)}
-.banner.bad{background:var(--warn-bg); color:var(--bad)}
-.item{border-top:1px solid var(--line); padding:13px 0; display:flex; gap:12px; align-items:center}
-.item:first-child{border-top:none; padding-top:2px}
-.item .val{flex:1 1 auto; min-width:0}
-.item .lbl{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px}
-.item .txt{
-  font:15px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  word-break:break-all; white-space:pre-wrap;
-}
-.item .txt.masked{color:var(--muted); letter-spacing:.12em}
-.item.done .txt{opacity:.5}
-.item button{padding:9px 13px; font-size:14px}
 .status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
 .status.bad{color:var(--bad)}
-.empty{color:var(--muted); font-size:14px; padding:6px 0}
 @media (max-width:430px){
   .item{flex-wrap:wrap; gap:9px}
   .item .val{flex:1 1 100%}
@@ -152,27 +139,17 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
     <button id="btn-refresh">Refresh</button>
   </header>
 
-  <div class="banner warn" id="stale-banner" hidden>
-    <span id="stale-text"></span>
-    <button class="link" id="btn-stale-show">Show anyway</button>
-  </div>
-
   <div class="card">
-    <h2>Received <span id="age"></span></h2>
-    <div id="items"></div>
-    <div class="empty" id="items-empty">Nothing here yet.</div>
-    <div class="row end" id="clear-row" hidden>
-      <button class="link" id="btn-clear">Delete from server</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Send</h2>
-    <textarea id="outbox" placeholder="One value per line.&#10;Label: value  →  gives the line a name."
+    <h2>Shared text <span id="age"></span></h2>
+    <textarea id="box" placeholder="Nothing here yet. Type something and press Send."
               autocomplete="off" spellcheck="false"></textarea>
-    <label class="check"><input type="checkbox" id="chk-single">
-      <span>Send as a single value (keep the line breaks)</span></label>
-    <div class="row end"><button class="primary" id="btn-send">Send</button></div>
+    <div class="row end">
+      <button class="primary icon" id="btn-send" disabled aria-label="Send" title="Send">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+      </button>
+    </div>
     <div class="status" id="send-status"></div>
   </div>
 
@@ -197,15 +174,13 @@ const DEC = new TextDecoder();
 const SALT = ENC.encode('web-clipboard/v1');
 const INFO_ROOM = ENC.encode('web-clipboard/v1 r');
 const INFO_KEY = ENC.encode('web-clipboard/v1 k');
-const STALE_MS = 60 * 60 * 1000;
 const DB_NAME = 'web-clipboard';
 const DB_STORE = 'kv';
 const DB_KEY = 'device';
-const MASK = '•'.repeat(10);
 
 const state = {
   roomKey: null, encKey: null, lastSeq: 0, persist: true,
-  items: [], copied: null, ts: 0, stale: false, revealStale: false,
+  remote: '', ts: 0,
 };
 
 // --- tiny helpers -----------------------------------------------------------
@@ -473,85 +448,27 @@ function copyNow(text) {
 
 // --- rendering --------------------------------------------------------------
 
-function renderItems() {
-  const host = $('items');
-  host.textContent = '';
-  const hasItems = state.items.length > 0;
-  $('items-empty').hidden = hasItems;
-  $('clear-row').hidden = !hasItems;
-  $('age').textContent = hasItems && state.ts ? '· ' + ago(state.ts) : '';
+// The box is the room's text and the draft at once, so "changed" is simply the box
+// differing from what the server is known to hold. Nothing else needs tracking.
+const dirty = () => $('box').value !== state.remote;
 
-  const hidden = state.stale && !state.revealStale;
-  $('stale-banner').hidden = !(hasItems && hidden);
-  if (hasItems && hidden) {
-    $('stale-text').textContent = 'This was sent ' + ago(state.ts) +
-      '. If you did not just send it, delete it instead.';
-    return;
-  }
-
-  state.items.forEach((item, index) => {
-    const row = document.createElement('div');
-    row.className = 'item';
-    const copied = state.copied.has(index);
-    if (copied) row.classList.add('done');
-
-    const value = document.createElement('div');
-    value.className = 'val';
-    if (item.label) {
-      const label = document.createElement('div');
-      label.className = 'lbl';
-      label.textContent = item.label;
-      value.appendChild(label);
-    }
-    const text = document.createElement('div');
-    text.className = 'txt masked';
-    text.textContent = MASK;
-    value.appendChild(text);
-
-    const reveal = document.createElement('button');
-    reveal.textContent = 'Show';
-    reveal.addEventListener('click', () => {
-      const masked = text.classList.toggle('masked');
-      text.textContent = masked ? MASK : item.text;
-      reveal.textContent = masked ? 'Show' : 'Hide';
-    });
-
-    const copy = document.createElement('button');
-    copy.className = 'primary';
-    copy.textContent = copied ? 'Copied' : 'Copy';
-    copy.addEventListener('click', () => {
-      const ok = copyNow(item.text);
-      copy.textContent = ok ? 'Copied' : 'Press Ctrl+C';
-      if (!ok) {
-        text.classList.remove('masked');
-        text.textContent = item.text;
-        reveal.textContent = 'Hide';
-        return;
-      }
-      row.classList.add('done');
-      markCopied(index);
-    });
-
-    row.append(value, reveal, copy);
-    host.appendChild(row);
-  });
+function syncSend() {
+  $('btn-send').disabled = !dirty();
 }
 
-async function markCopied(index) {
-  state.copied.add(index);
-  if (state.copied.size < state.items.length) return;
-  // Everything has been taken, so leave nothing behind for whoever images this machine.
-  try {
-    await api('/api/clear', { room: room() });
-    state.lastSeq = 0;
-    state.items = [];
-    state.copied = new Set();
-    await saveDevice();
-    renderItems();
-    setStatus('send-status', 'All copied — deleted from the server.');
-  } catch (err) {
-    setStatus('send-status', 'Copied, but could not delete from the server.', true);
-  }
+function renderBox() {
+  $('age').textContent = state.remote && state.ts ? '· ' + ago(state.ts) : '';
+  syncSend();
+}
+
+// Joined rather than reduced to items[0]: a record written by another client may hold
+// more than one item, and dropping the rest would silently lose text.
+const textOf = (items) => items.map((item) => item.text).join('\n');
+
+function load(text) {
+  $('box').value = text;
+  state.remote = text;
+  renderBox();
 }
 
 let lastRefresh = 0;
@@ -571,27 +488,31 @@ async function refresh(quiet) {
       return;
     }
     if (result.kind === 'undecryptable') {
-      state.items = [];
-      state.copied = new Set();
-      renderItems();
-      setStatus('send-status', 'Could not decrypt this item — the other device may be ' +
+      // The box is the user's text as much as the room's, so it is not thrown away
+      // because this end cannot read what the other end wrote.
+      setStatus('send-status', 'Could not decrypt this text — the other device may be ' +
         'using a different code.', true);
       return;
     }
     if (result.kind === 'empty') {
-      state.items = [];
-      state.copied = new Set();
-      state.stale = false;
-      renderItems();
-      if (!quiet) setStatus('send-status', 'Nothing on the server.');
+      state.ts = 0;
+      if (!dirty()) load('');
+      else state.remote = '';
+      renderBox();
       return;
     }
-    state.items = result.items;
+    const text = textOf(result.items);
+    // An edited box is never overwritten by a background refresh — not even with the
+    // same text it already holds, which is what switching tabs used to do. Only the
+    // Refresh button, an explicit act, replaces what you typed.
+    if (quiet && dirty()) {
+      if (text !== state.remote) {
+        setStatus('send-status', 'Newer text on the server — press Refresh to load it.');
+      }
+      return;
+    }
     state.ts = result.ts;
-    state.copied = new Set();
-    state.stale = result.ts > 0 && (Date.now() - result.ts) > STALE_MS;
-    state.revealStale = false;
-    renderItems();
+    load(text);
     if (!quiet) setStatus('send-status', '');
   } catch (err) {
     setStatus('send-status', err.status === 429
@@ -602,20 +523,12 @@ async function refresh(quiet) {
 
 // --- outgoing text ----------------------------------------------------------
 
-function parseItems(text, single) {
+// The whole box is one value: line breaks are part of what you sent, not a separator.
+// The empty label keeps the record shape {v, ts, items:[{label, text}]} unchanged.
+function parseItems(text) {
   const trimmed = text.replace(/\s+$/, '');
   if (!trimmed) return [];
-  if (single) return [{ label: '', text: trimmed }];
-  const items = [];
-  for (const raw of trimmed.split(/\r?\n/)) {
-    const line = raw.replace(/\s+$/, '');
-    if (!line.trim()) continue;
-    // Requires whitespace after the colon, so "https://host" is not read as a label.
-    const match = /^([A-Za-z][\w .\-]{0,23}):[ \t]+(\S.*)$/.exec(line);
-    if (match) items.push({ label: match[1].trim(), text: match[2] });
-    else items.push({ label: '', text: line });
-  }
-  return items;
+  return [{ label: '', text: trimmed }];
 }
 
 // --- session ----------------------------------------------------------------
@@ -626,8 +539,7 @@ async function activate(code, persist) {
   state.encKey = keys.encKey;
   state.persist = persist;
   state.lastSeq = 0;
-  state.items = [];
-  state.copied = new Set();
+  state.remote = '';
   if (persist) {
     await saveDevice();
     if (navigator.storage && navigator.storage.persist) {
@@ -635,7 +547,7 @@ async function activate(code, persist) {
     }
   }
   show('main');
-  renderItems();
+  load('');
   await refresh(true);
 }
 
@@ -647,9 +559,8 @@ async function resume() {
   state.encKey = saved.encKey;
   state.lastSeq = saved.lastSeq || 0;
   state.persist = true;
-  state.copied = new Set();
   show('main');
-  renderItems();
+  load('');
   await refresh(true);
   return true;
 }
@@ -740,44 +651,33 @@ $('code-input').addEventListener('keydown', (event) => {
 });
 
 $('btn-refresh').addEventListener('click', () => refresh(false));
-$('btn-stale-show').addEventListener('click', () => {
-  state.revealStale = true;
-  renderItems();
-});
-
-$('btn-clear').addEventListener('click', async () => {
-  try {
-    await api('/api/clear', { room: room() });
-    state.lastSeq = 0;
-    state.items = [];
-    state.copied = new Set();
-    await saveDevice();
-    renderItems();
-    setStatus('send-status', 'Deleted from the server.');
-  } catch (err) {
-    setStatus('send-status', 'Could not delete from the server.', true);
-  }
-});
+$('box').addEventListener('input', syncSend);
 
 $('btn-send').addEventListener('click', async () => {
-  const items = parseItems($('outbox').value, $('chk-single').checked);
-  if (!items.length) {
-    setStatus('send-status', 'Nothing to send.', true);
-    return;
-  }
+  const items = parseItems($('box').value);
   $('btn-send').disabled = true;
-  setStatus('send-status', 'Sending…');
+  setStatus('send-status', '');
   try {
-    await send(items);
-    $('outbox').value = '';
-    setStatus('send-status', 'Sent ' + items.length +
-      (items.length === 1 ? ' value.' : ' values.'));
+    if (items.length) {
+      await send(items);
+      // The text actually sent, so a trailing newline cannot leave the box dirty
+      // against a value the server never saw. The button greying out is the receipt;
+      // there is nothing to announce.
+      load(items[0].text);
+    } else {
+      // An emptied box means the shared text is now empty, which is a clear.
+      await api('/api/clear', { room: room() });
+      state.lastSeq = 0;
+      state.ts = 0;
+      await saveDevice();
+      load('');
+    }
   } catch (err) {
     setStatus('send-status', err.status === 429
       ? 'Too many requests — wait a moment.'
       : 'Could not reach the server.', true);
   } finally {
-    $('btn-send').disabled = false;
+    syncSend();
   }
 });
 

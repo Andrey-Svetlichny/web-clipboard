@@ -132,39 +132,24 @@
   "parse": [
     {
       "text": "IBAN: DE89 3704 0044 0532 0130 00\nBIC: COBADEFFXXX\nhunter2",
-      "single": false,
       "items": [
         {
-          "label": "IBAN",
-          "text": "DE89 3704 0044 0532 0130 00"
-        },
-        {
-          "label": "BIC",
-          "text": "COBADEFFXXX"
-        },
-        {
           "label": "",
-          "text": "hunter2"
+          "text": "IBAN: DE89 3704 0044 0532 0130 00\nBIC: COBADEFFXXX\nhunter2"
         }
       ]
     },
     {
       "text": "https://example.com/x\n\n  spaced   \n",
-      "single": false,
       "items": [
         {
           "label": "",
-          "text": "https://example.com/x"
-        },
-        {
-          "label": "",
-          "text": "  spaced"
+          "text": "https://example.com/x\n\n  spaced"
         }
       ]
     },
     {
       "text": "line one\nline two",
-      "single": true,
       "items": [
         {
           "label": "",
@@ -174,15 +159,10 @@
     },
     {
       "text": "Ref no.: 99\nA: b",
-      "single": false,
       "items": [
         {
-          "label": "Ref no.",
-          "text": "99"
-        },
-        {
-          "label": "A",
-          "text": "b"
+          "label": "",
+          "text": "Ref no.: 99\nA: b"
         }
       ]
     }

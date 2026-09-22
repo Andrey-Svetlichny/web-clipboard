@@ -68,13 +68,13 @@ for (const input of typed) {
 }
 
 const PARSE_CASES = [
-  ['IBAN: DE89 3704 0044 0532 0130 00\nBIC: COBADEFFXXX\nhunter2', false],
-  ['https://example.com/x\n\n  spaced   \n', false],
-  ['line one\nline two', true],
-  ['Ref no.: 99\nA: b', false],
+  'IBAN: DE89 3704 0044 0532 0130 00\nBIC: COBADEFFXXX\nhunter2',
+  'https://example.com/x\n\n  spaced   \n',
+  'line one\nline two',
+  'Ref no.: 99\nA: b',
 ];
-for (const [text, single] of PARSE_CASES) {
-  vectors.parse.push({ text, single, items: core.parseItems(text, single) });
+for (const text of PARSE_CASES) {
+  vectors.parse.push({ text, items: core.parseItems(text) });
 }
 
 const out = process.argv[2] || path.join(root, 'tests', 'vectors.json');
