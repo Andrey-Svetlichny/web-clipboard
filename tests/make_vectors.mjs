@@ -41,11 +41,14 @@ for (const body of BODIES) {
 
   for (const [index, text] of PLAINTEXTS.entries()) {
     const seq = index === 0 ? 1 : 4096;
+    // Slot 1 as well as slot 0, so the vectors pin the slot's place in the AAD: the
+    // same code, sequence and iv must produce different ciphertext per slot.
+    const slot = index === 0 ? 0 : 1;
     const iv = new Uint8Array(12).map((_, i) => (i * 17 + index * 5 + body.length) & 0xff);
-    const ct = await core.seal(keys.encKey, keys.roomKey, seq, iv, encoder.encode(text));
+    const ct = await core.seal(keys.encKey, keys.roomKey, slot, seq, iv, encoder.encode(text));
     vectors.records.push({
-      code, seq, iv: hex(iv), plaintext: text, ct: hex(ct),
-      aad: hex(core.aad(keys.roomKey, seq)),
+      code, slot, seq, iv: hex(iv), plaintext: text, ct: hex(ct),
+      aad: hex(core.aad(keys.roomKey, slot, seq)),
     });
   }
 }

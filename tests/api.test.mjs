@@ -5,11 +5,13 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { createApp } from '../server/index.mjs';
+import { createApp, MAX_BODY, MAX_CT, MAX_SLOT } from '../server/index.mjs';
 
 const ROOM = Buffer.alloc(16, 0x07).toString('base64url');
 const IV = Buffer.alloc(12, 0x00).toString('base64url');
 const CT = Buffer.alloc(40, 0x09).toString('base64url');
+const TEXT = 0;
+const FILE = 1;
 
 async function withApp(t, run) {
   const dir = mkdtempSync(path.join(tmpdir(), 'clipboard-api-'));
@@ -31,64 +33,99 @@ async function withApp(t, run) {
 }
 
 test('an empty room answers 204', (t) => withApp(t, async ({ post }) => {
-  assert.equal((await post('get', { room: ROOM })).status, 204);
+  assert.equal((await post('get', { room: ROOM, slot: TEXT })).status, 204);
 }));
 
 test('put then get', (t) => withApp(t, async ({ post }) => {
-  assert.deepEqual(await (await post('put', { room: ROOM, seq: 1, iv: IV, ct: CT })).json(),
+  assert.deepEqual(await (await post('put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: CT })).json(),
     { seq: 1 });
-  assert.deepEqual(await (await post('get', { room: ROOM })).json(),
+  assert.deepEqual(await (await post('get', { room: ROOM, slot: TEXT })).json(),
     { seq: 1, iv: IV, ct: CT });
 }));
 
 test('a stale sequence is 409 and reports the current one', (t) => withApp(t, async ({ post }) => {
-  await post('put', { room: ROOM, seq: 3, iv: IV, ct: CT });
-  const response = await post('put', { room: ROOM, seq: 2, iv: IV, ct: CT });
+  await post('put', { room: ROOM, slot: TEXT, seq: 3, iv: IV, ct: CT });
+  const response = await post('put', { room: ROOM, slot: TEXT, seq: 2, iv: IV, ct: CT });
   assert.equal(response.status, 409);
   assert.equal((await response.json()).seq, 3);
 }));
 
 test('a sequence jump is refused', (t) => withApp(t, async ({ post }) => {
-  await post('put', { room: ROOM, seq: 1, iv: IV, ct: CT });
-  assert.equal((await post('put', { room: ROOM, seq: 2 ** 40, iv: IV, ct: CT })).status, 409);
+  await post('put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: CT });
+  assert.equal((await post('put', { room: ROOM, slot: TEXT, seq: 2 ** 40, iv: IV, ct: CT })).status, 409);
 }));
 
 test('clear empties the room and lets it restart', (t) => withApp(t, async ({ post }) => {
-  await post('put', { room: ROOM, seq: 1, iv: IV, ct: CT });
-  assert.equal((await post('clear', { room: ROOM })).status, 200);
-  assert.equal((await post('get', { room: ROOM })).status, 204);
-  assert.equal((await post('put', { room: ROOM, seq: 1, iv: IV, ct: CT })).status, 200);
+  await post('put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: CT });
+  assert.equal((await post('clear', { room: ROOM, slot: TEXT })).status, 200);
+  assert.equal((await post('get', { room: ROOM, slot: TEXT })).status, 204);
+  assert.equal((await post('put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: CT })).status, 200);
 }));
 
 test('malformed requests are rejected', (t) => withApp(t, async ({ post }) => {
   const shortRoom = Buffer.alloc(8, 0x01).toString('base64url');
   const cases = [
-    ['get', { room: shortRoom }],
-    ['get', { room: 5 }],
+    ['get', { room: shortRoom, slot: TEXT }],
+    ['get', { room: 5, slot: TEXT }],
     ['get', {}],
-    ['get', { room: `${ROOM.slice(0, -1)}!` }],
+    ['get', { room: `${ROOM.slice(0, -1)}!`, slot: TEXT }],
     ['get', '[1,2,3]'],
     ['get', 'not json'],
-    ['put', { room: ROOM, seq: 0, iv: IV, ct: CT }],
-    ['put', { room: ROOM, seq: 1.5, iv: IV, ct: CT }],
-    ['put', { room: ROOM, seq: true, iv: IV, ct: CT }],
-    ['put', { room: ROOM, seq: 1, iv: CT, ct: CT }],
-    ['put', { room: ROOM, seq: 1, iv: IV, ct: 'AAAA' }],
+    ['put', { room: ROOM, slot: TEXT, seq: 0, iv: IV, ct: CT }],
+    ['put', { room: ROOM, slot: TEXT, seq: 1.5, iv: IV, ct: CT }],
+    ['put', { room: ROOM, slot: TEXT, seq: true, iv: IV, ct: CT }],
+    ['put', { room: ROOM, slot: TEXT, seq: 1, iv: CT, ct: CT }],
+    ['put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: 'AAAA' }],
+    ['get', { room: ROOM }],
+    ['get', { room: ROOM, slot: MAX_SLOT + 1 }],
+    ['get', { room: ROOM, slot: -1 }],
+    ['get', { room: ROOM, slot: 1.5 }],
+    ['get', { room: ROOM, slot: '0' }],
+    ['clear', { room: ROOM, slot: MAX_SLOT + 1 }],
   ];
   for (const [endpoint, body] of cases) {
     assert.equal((await post(endpoint, body)).status, 400, JSON.stringify(body));
   }
 }));
 
-test('an oversized body is 413', (t) => withApp(t, async ({ post }) => {
-  const oversized = Buffer.alloc(70_000).toString('base64url');
-  assert.equal((await post('put', { room: ROOM, seq: 1, iv: IV, ct: oversized })).status, 413);
+test('a ciphertext over the limit is 413', (t) => withApp(t, async ({ post }) => {
+  const oversized = Buffer.alloc(MAX_CT + 1).toString('base64url');
+  assert.equal(
+    (await post('put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: oversized })).status, 413);
+}));
+
+test('a body over the limit is 413 before it is read', (t) => withApp(t, async ({ base }) => {
+  // Declared, not sent: readBody must refuse on Content-Length alone, or a large upload
+  // is buffered in full before anyone checks whether it was allowed.
+  const response = await fetch(`${base}/api/put`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'content-length': String(MAX_BODY + 1) },
+    body: 'x'.repeat(MAX_BODY + 1),
+  });
+  assert.equal(response.status, 413);
+}));
+
+test('slots are stored apart and cleared apart', (t) => withApp(t, async ({ post }) => {
+  const other = Buffer.alloc(40, 0x0a).toString('base64url');
+  await post('put', { room: ROOM, slot: TEXT, seq: 1, iv: IV, ct: CT });
+  await post('put', { room: ROOM, slot: FILE, seq: 1, iv: IV, ct: other });
+  assert.equal((await (await post('get', { room: ROOM, slot: FILE })).json()).ct, other);
+
+  assert.equal((await post('clear', { room: ROOM, slot: FILE })).status, 200);
+  assert.equal((await post('get', { room: ROOM, slot: FILE })).status, 204);
+  assert.equal((await post('get', { room: ROOM, slot: TEXT })).status, 200);
+
+  // No slot means the whole room, attachments included.
+  await post('put', { room: ROOM, slot: FILE, seq: 1, iv: IV, ct: other });
+  assert.equal((await post('clear', { room: ROOM })).status, 200);
+  assert.equal((await post('get', { room: ROOM, slot: FILE })).status, 204);
+  assert.equal((await post('get', { room: ROOM, slot: TEXT })).status, 204);
 }));
 
 test('the per-room rate limit bites', (t) => withApp(t, async ({ app, post }) => {
   const seen = new Set();
   for (let i = 0; i < app.roomLimiter.capacity + 10; i++) {
-    seen.add((await post('get', { room: ROOM })).status);
+    seen.add((await post('get', { room: ROOM, slot: TEXT })).status);
   }
   assert.ok(seen.has(429), [...seen].join(','));
 }));

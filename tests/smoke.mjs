@@ -39,7 +39,10 @@ check('a mistyped-but-equivalent code normalises back', recovered === code, type
 const keys = await core.derive(code);
 const room = core.b64u(keys.roomKey);
 
-check('room starts empty', (await api('get', { room })).status === 204);
+const TEXT = 0;
+const FILE = 2;
+
+check('room starts empty', (await api('get', { room, slot: TEXT })).status === 204);
 
 const items = core.parseItems('IBAN: DE89370400440532013000\nBIC: COBADEFFXXX\nhunter2');
 check('the whole box is one item with its line breaks kept',
@@ -49,16 +52,17 @@ check('the whole box is one item with its line breaks kept',
 const seq = 1;
 const iv = crypto.getRandomValues(new Uint8Array(12));
 const plaintext = encoder.encode(JSON.stringify({ v: 1, ts: Math.floor(Date.now() / 1000), items }));
-const ct = await core.seal(keys.encKey, keys.roomKey, seq, iv, plaintext);
+const ct = await core.seal(keys.encKey, keys.roomKey, TEXT, seq, iv, plaintext);
 
-const put = await api('put', { room, seq, iv: core.b64u(iv), ct: core.b64u(ct) });
+const put = await api('put', { room, slot: TEXT, seq, iv: core.b64u(iv), ct: core.b64u(ct) });
 check('put accepted', put.status === 200, JSON.stringify(put.data));
 
-const got = await api('get', { room });
+const got = await api('get', { room, slot: TEXT });
 check('get returns the record', got.status === 200 && got.data.seq === seq);
 
 const opened = await core.unseal(
-  keys.encKey, keys.roomKey, got.data.seq, core.unb64u(got.data.iv), core.unb64u(got.data.ct));
+  keys.encKey, keys.roomKey, TEXT, got.data.seq,
+  core.unb64u(got.data.iv), core.unb64u(got.data.ct));
 const payload = JSON.parse(decoder.decode(opened));
 check('round trip preserves every value',
   JSON.stringify(payload.items) === JSON.stringify(items));
@@ -66,20 +70,50 @@ check('round trip preserves every value',
 // The tag must be bound to the sequence number.
 let tampered = false;
 try {
-  await core.unseal(keys.encKey, keys.roomKey, seq + 1,
+  await core.unseal(keys.encKey, keys.roomKey, TEXT, seq + 1,
     core.unb64u(got.data.iv), core.unb64u(got.data.ct));
 } catch (err) {
   tampered = true;
 }
 check('a record cannot be replayed at another sequence', tampered);
 
+let moved = false;
+try {
+  await core.unseal(keys.encKey, keys.roomKey, FILE, seq,
+    core.unb64u(got.data.iv), core.unb64u(got.data.ct));
+} catch (err) {
+  moved = true;
+}
+check('a record cannot be moved into another slot', moved);
+
 check('replaying the same seq is refused', (await api('put',
-  { room, seq, iv: core.b64u(iv), ct: core.b64u(ct) })).status === 409);
+  { room, slot: TEXT, seq, iv: core.b64u(iv), ct: core.b64u(ct) })).status === 409);
 check('a sequence jump is refused', (await api('put',
-  { room, seq: 2 ** 40, iv: core.b64u(iv), ct: core.b64u(ct) })).status === 409);
+  { room, slot: TEXT, seq: 2 ** 40, iv: core.b64u(iv), ct: core.b64u(ct) })).status === 409);
+
+// An attachment: raw bytes, no JSON wrapper, in a slot of its own. Every byte value
+// appears so a latin1/utf8 slip in the base64 path would show up here.
+const fileBytes = new Uint8Array(256).map((_, i) => i);
+const fileIv = crypto.getRandomValues(new Uint8Array(12));
+const fileCt = await core.seal(keys.encKey, keys.roomKey, FILE, 1, fileIv, fileBytes);
+check('a file record is accepted in its own slot', (await api('put',
+  { room, slot: FILE, seq: 1, iv: core.b64u(fileIv), ct: core.b64u(fileCt) })).status === 200);
+
+const gotFile = await api('get', { room, slot: FILE });
+const fileBack = await core.unseal(keys.encKey, keys.roomKey, FILE, gotFile.data.seq,
+  core.unb64u(gotFile.data.iv), core.unb64u(gotFile.data.ct));
+check('the file comes back byte for byte',
+  fileBack.length === fileBytes.length && fileBack.every((byte, i) => byte === fileBytes[i]));
+
+check('the text slot is untouched by the file',
+  (await api('get', { room, slot: TEXT })).status === 200);
+check('one slot can be deleted alone',
+  (await api('clear', { room, slot: FILE })).status === 200);
+check('the deleted slot is empty', (await api('get', { room, slot: FILE })).status === 204);
+check('its neighbour survived', (await api('get', { room, slot: TEXT })).status === 200);
 
 check('clear works', (await api('clear', { room })).status === 200);
-check('room is empty again', (await api('get', { room })).status === 204);
+check('room is empty again', (await api('get', { room, slot: TEXT })).status === 204);
 
 const page = await fetch(`${base}/`);
 const csp = page.headers.get('content-security-policy') || '';

@@ -2,9 +2,20 @@
 
 An end-to-end encrypted web clipboard for sharing text between Computers, phones, etc.
 
-Text only, one item at a time, 24-hour expiry. No account, no install, no extension: a
-browser tab over 443 and nothing else, which is the point — some VM allows a browser and
-not much else.
+One shared text, plus up to five attachments of 1 MiB each, 24-hour expiry. No account,
+no install, no extension: a browser tab over 443 and nothing else, which is the point —
+some VM allows a browser and not much else.
+
+Attachments are encrypted in the browser like the text is: their names and types travel
+inside the ciphertext, and the server only ever learns how many bytes a record holds.
+Each file is its own record, so adding or removing one costs one file and the bytes are
+fetched only when someone clicks the name. Files expire with the text — any write extends
+the whole room, so an attachment never outlives the text that names it.
+
+Raising the limits means changing three things together, or the largest file will 413 at
+whichever one you forgot: `MAX_BODY`/`MAX_CT` in `server/index.mjs`, `client_max_body_size`
+in `deploy/nginx-web-clipboard.conf`, and `max_size` in the `Caddyfile`. `MAX_FILES` and
+`MAX_FILE_BYTES` in `web/index.html` are what the page itself enforces.
 
 ## Install
 

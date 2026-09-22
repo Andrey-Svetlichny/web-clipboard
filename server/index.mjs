@@ -18,8 +18,11 @@ import { SeqConflict, Store } from './store.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(HERE, '..', 'web');
 
-const MAX_BODY = 96 * 1024;
-const MAX_CT = 64 * 1024;
+// One file per record, so a request carries at most one attachment: the ceiling is a
+// single file plus its base64url inflation, not the whole attachment set.
+export const MAX_BODY = 3 * 1024 * 1024;
+export const MAX_CT = 2 * 1024 * 1024;
+export const MAX_SLOT = 5;
 const ROOM_KEY_LEN = 16;
 const IV_LEN = 12;
 const SWEEP_EVERY_MS = 300_000;
@@ -129,6 +132,13 @@ function decodeB64u(value, { exact, limit } = {}) {
 
 const encodeB64u = (raw) => Buffer.from(raw).toString('base64url');
 
+// Slot 0 is the text and the manifest; 1..MAX_SLOT are files. The server attaches no
+// meaning to either, it just refuses anything outside the range.
+function decodeSlot(value) {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_SLOT) throw badRequest('bad slot');
+  return value;
+}
+
 function clientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.length > 0) {
@@ -178,9 +188,10 @@ export function createApp({
 
   const routes = {
     'POST /api/get': async (req, res) => {
-      const { roomKey } = await readRoom(req);
+      const { payload, roomKey } = await readRoom(req);
+      const slot = decodeSlot(payload.slot);
       maybeSweep();
-      const record = store.get(roomKey);
+      const record = store.get(roomKey, slot);
       if (!record) return send(res, 204, null);
       return sendJson(res, 200, {
         seq: record.seq,
@@ -191,6 +202,7 @@ export function createApp({
 
     'POST /api/put': async (req, res) => {
       const { payload, roomKey } = await readRoom(req);
+      const slot = decodeSlot(payload.slot);
       const { seq } = payload;
       if (!Number.isSafeInteger(seq) || seq <= 0) throw badRequest('bad seq');
       const iv = decodeB64u(payload.iv, { exact: IV_LEN });
@@ -198,7 +210,7 @@ export function createApp({
       // A 16-byte GCM tag plus at least one byte of plaintext.
       if (ct.length < 17) throw badRequest('bad ct');
       try {
-        store.put(roomKey, seq, iv, ct);
+        store.put(roomKey, slot, seq, iv, ct);
       } catch (error) {
         if (error instanceof SeqConflict) {
           return sendJson(res, 409, { error: 'seq', seq: error.current });
@@ -209,8 +221,11 @@ export function createApp({
     },
 
     'POST /api/clear': async (req, res) => {
-      const { roomKey } = await readRoom(req);
-      store.clear(roomKey);
+      const { payload, roomKey } = await readRoom(req);
+      // No slot means the whole room, which is how unlinking and "delete everything"
+      // stay one request rather than one per attachment.
+      const slot = payload.slot === undefined ? null : decodeSlot(payload.slot);
+      store.clear(roomKey, slot);
       return sendJson(res, 200, {});
     },
 

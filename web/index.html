@@ -52,6 +52,11 @@ button.primary{background:var(--accent); color:var(--accent-ink); border-color:t
 button.primary:disabled{opacity:.45; cursor:default}
 button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center}
 button.icon svg{width:21px; height:21px; display:block; fill:currentColor}
+button.icon:disabled{opacity:.45; cursor:default}
+.file{display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); padding:7px 0}
+.file .link{text-align:left; word-break:break-all; padding:6px 0}
+.file .size{font-size:13px; color:var(--muted); flex:none}
+#files{margin-top:10px}
 button.link{background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 4px; min-height:0}
 button.link:hover{color:var(--ink)}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
@@ -143,7 +148,15 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
     <h2>Shared text <span id="age"></span></h2>
     <textarea id="box" placeholder="Nothing here yet. Type something and press Send."
               autocomplete="off" spellcheck="false"></textarea>
-    <div class="row end">
+    <div id="files"></div>
+    <div class="row">
+      <input type="file" id="file-input" multiple hidden>
+      <button class="icon" id="btn-attach" aria-label="Attach a file" title="Attach a file">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M16.5 6v11.5a4.5 4.5 0 01-9 0V5a3 3 0 016 0v10.5a1.5 1.5 0 01-3 0V6H9v9.5a3 3 0 006 0V5a4.5 4.5 0 00-9 0v12.5a6 6 0 0012 0V6h-1.5z"/>
+        </svg>
+      </button>
+      <span class="grow"></span>
       <button class="primary icon" id="btn-send" disabled aria-label="Send" title="Send">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -177,10 +190,15 @@ const INFO_KEY = ENC.encode('web-clipboard/v1 k');
 const DB_NAME = 'web-clipboard';
 const DB_STORE = 'kv';
 const DB_KEY = 'device';
+const TEXT_SLOT = 0;
+const MAX_FILES = 5;
+const MAX_FILE_BYTES = 1024 * 1024;
 
 const state = {
-  roomKey: null, encKey: null, lastSeq: 0, persist: true,
-  remote: '', ts: 0,
+  roomKey: null, encKey: null, seqs: {}, persist: true,
+  // remote is the text the server holds; files is the manifest from slot 0. File bytes
+  // are never held here: they are fetched when someone asks for them.
+  remote: '', ts: 0, files: [],
 };
 
 // --- tiny helpers -----------------------------------------------------------
@@ -199,9 +217,17 @@ function setStatus(id, message, bad) {
   el.classList.toggle('bad', !!bad);
 }
 
+// The only failures worth a word: the request did not get through.
+const reason = (err) => (err.status === 429
+  ? 'Too many requests — wait a moment.'
+  : 'Could not reach the server.');
+
 function b64u(bytes) {
   let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  // In chunks: one append per byte is fine for a 12-byte IV and painful for a 1 MiB file.
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  }
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
@@ -270,21 +296,26 @@ async function derive(code) {
   return { roomKey, encKey };
 }
 
-function aad(roomKey, seq) {
-  const out = new Uint8Array(roomKey.length + 8);
+// roomKey || slot (4 bytes BE) || seq (8 bytes BE). The slot is in here because without
+// it a file record could be lifted into another slot of the same room at the same
+// sequence number and would still open.
+function aad(roomKey, slot, seq) {
+  const out = new Uint8Array(roomKey.length + 12);
   out.set(roomKey, 0);
-  new DataView(out.buffer).setBigUint64(roomKey.length, BigInt(seq), false);
+  const view = new DataView(out.buffer);
+  view.setUint32(roomKey.length, slot, false);
+  view.setBigUint64(roomKey.length + 4, BigInt(seq), false);
   return out;
 }
 
-async function seal(encKey, roomKey, seq, iv, plaintext) {
+async function seal(encKey, roomKey, slot, seq, iv, plaintext) {
   return new Uint8Array(await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv, additionalData: aad(roomKey, seq) }, encKey, plaintext));
+    { name: 'AES-GCM', iv, additionalData: aad(roomKey, slot, seq) }, encKey, plaintext));
 }
 
-async function unseal(encKey, roomKey, seq, iv, ciphertext) {
+async function unseal(encKey, roomKey, slot, seq, iv, ciphertext) {
   return new Uint8Array(await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv, additionalData: aad(roomKey, seq) }, encKey, ciphertext));
+    { name: 'AES-GCM', iv, additionalData: aad(roomKey, slot, seq) }, encKey, ciphertext));
 }
 
 // --- storage ----------------------------------------------------------------
@@ -320,7 +351,7 @@ async function saveDevice() {
   try {
     const db = await openDb();
     await tx(db, 'readwrite', (s) => s.put({
-      roomKey: state.roomKey, encKey: state.encKey, lastSeq: state.lastSeq,
+      roomKey: state.roomKey, encKey: state.encKey, seqs: state.seqs,
     }, DB_KEY));
   } catch (err) {
     setStatus('send-status', 'This browser will not keep the key — you will have to ' +
@@ -361,63 +392,98 @@ async function api(path, body) {
 
 const room = () => b64u(state.roomKey);
 
-async function pushRecord(items) {
-  const seq = state.lastSeq + 1;
+// Rollback floors are per slot: one counter shared across slots would race ahead on the
+// text and then trip the server's jump limit the first time a rarely-written file slot
+// is used.
+const seqOf = (slot) => state.seqs[slot] || 0;
+
+async function pushRecord(slot, plaintext) {
+  const seq = seqOf(slot) + 1;
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const plaintext = ENC.encode(JSON.stringify({
-    v: 1, ts: Math.floor(Date.now() / 1000), items,
-  }));
-  const ciphertext = await seal(state.encKey, state.roomKey, seq, iv, plaintext);
-  await api('/api/put', { room: room(), seq, iv: b64u(iv), ct: b64u(ciphertext) });
-  state.lastSeq = seq;
+  const ciphertext = await seal(state.encKey, state.roomKey, slot, seq, iv, plaintext);
+  await api('/api/put', { room: room(), slot, seq, iv: b64u(iv), ct: b64u(ciphertext) });
+  state.seqs[slot] = seq;
   await saveDevice();
 }
 
-async function send(items) {
+async function send(slot, plaintext) {
   try {
-    await pushRecord(items);
+    await pushRecord(slot, plaintext);
   } catch (err) {
     // Another device wrote while we were away; adopt its sequence and try once more.
     if (err.status === 409 && err.data && typeof err.data.seq === 'number') {
-      state.lastSeq = err.data.seq;
-      await pushRecord(items);
+      state.seqs[slot] = err.data.seq;
+      await pushRecord(slot, plaintext);
     } else {
       throw err;
     }
   }
 }
 
-async function fetchRecord() {
-  const record = await api('/api/get', { room: room() });
+// Slot 0 carries the text and the manifest together, so a peer learns about an
+// attachment in the same fetch that brings it the text.
+const sendText = (text, files) => send(TEXT_SLOT, ENC.encode(JSON.stringify({
+  v: 1, ts: Math.floor(Date.now() / 1000), items: parseItems(text), files,
+})));
+
+async function fetchRecord(slot) {
+  const record = await api('/api/get', { room: room(), slot });
   if (!record) {
-    // The room is empty: cleared, or expired. Drop the rollback floor with it, so a
+    // The slot is empty: cleared, or expired. Drop the rollback floor with it, so a
     // peer that did not do the clearing is not stuck rejecting the next send.
-    state.lastSeq = 0;
-    await saveDevice();
+    if (state.seqs[slot]) {
+      delete state.seqs[slot];
+      await saveDevice();
+    }
     return { kind: 'empty' };
   }
-  if (record.seq < state.lastSeq) return { kind: 'rollback' };
+  if (record.seq < seqOf(slot)) return { kind: 'rollback' };
 
   let plaintext;
   try {
-    plaintext = await unseal(state.encKey, state.roomKey, record.seq,
+    plaintext = await unseal(state.encKey, state.roomKey, slot, record.seq,
       unb64u(record.iv), unb64u(record.ct));
   } catch (err) {
     return { kind: 'undecryptable' };
   }
 
+  state.seqs[slot] = record.seq;
+  await saveDevice();
+  return { kind: 'ok', plaintext };
+}
+
+// Slot 0 only: the file slots hold raw bytes and are never parsed as JSON.
+async function fetchText() {
+  const result = await fetchRecord(TEXT_SLOT);
+  if (result.kind !== 'ok') return result;
+
   let payload;
   try {
-    payload = JSON.parse(DEC.decode(plaintext));
+    payload = JSON.parse(DEC.decode(result.plaintext));
   } catch (err) {
     return { kind: 'undecryptable' };
   }
   const items = Array.isArray(payload && payload.items) ? payload.items.filter(
     (item) => item && typeof item.text === 'string') : [];
+  return { kind: 'ok', items, files: validFiles(payload && payload.files),
+    ts: (payload.ts || 0) * 1000 };
+}
 
-  state.lastSeq = record.seq;
-  await saveDevice();
-  return { kind: 'ok', items, ts: (payload.ts || 0) * 1000 };
+// Whatever a peer put in the manifest, only entries this client can act on survive:
+// a usable slot, a name to show, and a size to display.
+function validFiles(files) {
+  if (!Array.isArray(files)) return [];
+  return files.filter((file) => file
+    && Number.isInteger(file.slot) && file.slot >= 1 && file.slot <= MAX_FILES
+    && typeof file.name === 'string' && file.name.length > 0
+    && Number.isFinite(file.size))
+    .slice(0, MAX_FILES)
+    .map((file) => ({
+      slot: file.slot,
+      name: file.name,
+      type: typeof file.type === 'string' ? file.type : '',
+      size: file.size,
+    }));
 }
 
 // --- clipboard --------------------------------------------------------------
@@ -458,16 +524,55 @@ function syncSend() {
 
 function renderBox() {
   $('age').textContent = state.remote && state.ts ? '· ' + ago(state.ts) : '';
+  renderFiles();
   syncSend();
+}
+
+const KB = 1024;
+function humanSize(bytes) {
+  if (bytes < KB) return bytes + ' B';
+  if (bytes < KB * KB) return Math.round(bytes / KB) + ' KB';
+  return (bytes / (KB * KB)).toFixed(1) + ' MB';
+}
+
+function renderFiles() {
+  const host = $('files');
+  host.textContent = '';
+  $('btn-attach').disabled = state.files.length >= MAX_FILES;
+
+  for (const file of state.files) {
+    const row = document.createElement('div');
+    row.className = 'file';
+
+    const name = document.createElement('button');
+    name.className = 'link grow';
+    name.textContent = file.name;
+    name.title = 'Download ' + file.name;
+    name.addEventListener('click', () => downloadFile(file));
+
+    const size = document.createElement('span');
+    size.className = 'size';
+    size.textContent = humanSize(file.size);
+
+    const remove = document.createElement('button');
+    remove.className = 'link';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', 'Remove ' + file.name);
+    remove.addEventListener('click', () => removeFile(file));
+
+    row.append(name, size, remove);
+    host.appendChild(row);
+  }
 }
 
 // Joined rather than reduced to items[0]: a record written by another client may hold
 // more than one item, and dropping the rest would silently lose text.
 const textOf = (items) => items.map((item) => item.text).join('\n');
 
-function load(text) {
+function load(text, files) {
   $('box').value = text;
   state.remote = text;
+  state.files = files;
   renderBox();
 }
 
@@ -481,7 +586,7 @@ async function refresh(quiet) {
   if (quiet && now - lastRefresh < 2000) return;
   lastRefresh = now;
   try {
-    const result = await fetchRecord();
+    const result = await fetchText();
     if (result.kind === 'rollback') {
       setStatus('send-status', 'The server offered an older item than this device has ' +
         'already seen. Ignored.', true);
@@ -496,28 +601,28 @@ async function refresh(quiet) {
     }
     if (result.kind === 'empty') {
       state.ts = 0;
-      if (!dirty()) load('');
-      else state.remote = '';
-      renderBox();
+      if (!dirty()) load('', []);
+      else { state.remote = ''; state.files = []; renderBox(); }
       return;
     }
     const text = textOf(result.items);
     // An edited box is never overwritten by a background refresh — not even with the
     // same text it already holds, which is what switching tabs used to do. Only the
-    // Refresh button, an explicit act, replaces what you typed.
+    // Refresh button, an explicit act, replaces what you typed. Attachments are not a
+    // draft, so they land either way.
     if (quiet && dirty()) {
+      state.files = result.files;
+      renderBox();
       if (text !== state.remote) {
         setStatus('send-status', 'Newer text on the server — press Refresh to load it.');
       }
       return;
     }
     state.ts = result.ts;
-    load(text);
+    load(text, result.files);
     if (!quiet) setStatus('send-status', '');
   } catch (err) {
-    setStatus('send-status', err.status === 429
-      ? 'Too many requests — wait a moment.'
-      : 'Could not reach the server.', true);
+    setStatus('send-status', reason(err), true);
   }
 }
 
@@ -538,8 +643,9 @@ async function activate(code, persist) {
   state.roomKey = keys.roomKey;
   state.encKey = keys.encKey;
   state.persist = persist;
-  state.lastSeq = 0;
+  state.seqs = {};
   state.remote = '';
+  state.files = [];
   if (persist) {
     await saveDevice();
     if (navigator.storage && navigator.storage.persist) {
@@ -547,7 +653,7 @@ async function activate(code, persist) {
     }
   }
   show('main');
-  load('');
+  load('', []);
   await refresh(true);
 }
 
@@ -557,10 +663,10 @@ async function resume() {
   state.roomKey = saved.roomKey instanceof Uint8Array
     ? saved.roomKey : new Uint8Array(saved.roomKey);
   state.encKey = saved.encKey;
-  state.lastSeq = saved.lastSeq || 0;
+  state.seqs = (saved.seqs && typeof saved.seqs === 'object') ? saved.seqs : {};
   state.persist = true;
   show('main');
-  load('');
+  load('', []);
   await refresh(true);
   return true;
 }
@@ -658,28 +764,119 @@ $('btn-send').addEventListener('click', async () => {
   $('btn-send').disabled = true;
   setStatus('send-status', '');
   try {
-    if (items.length) {
-      await send(items);
+    if (items.length || state.files.length) {
+      await sendText($('box').value, state.files);
       // The text actually sent, so a trailing newline cannot leave the box dirty
       // against a value the server never saw. The button greying out is the receipt;
       // there is nothing to announce.
-      load(items[0].text);
+      state.ts = Date.now();
+      load(items.length ? items[0].text : '', state.files);
     } else {
-      // An emptied box means the shared text is now empty, which is a clear.
+      // Nothing left to share at all: drop the room, attachments and seq floors with it.
       await api('/api/clear', { room: room() });
-      state.lastSeq = 0;
+      state.seqs = {};
       state.ts = 0;
       await saveDevice();
-      load('');
+      load('', []);
     }
   } catch (err) {
-    setStatus('send-status', err.status === 429
-      ? 'Too many requests — wait a moment.'
-      : 'Could not reach the server.', true);
+    setStatus('send-status', reason(err), true);
   } finally {
     syncSend();
   }
 });
+
+// --- attachments ------------------------------------------------------------
+
+// Lowest free slot, so removing the middle file does not strand the numbering.
+function freeSlot() {
+  const taken = new Set(state.files.map((file) => file.slot));
+  for (let slot = 1; slot <= MAX_FILES; slot++) if (!taken.has(slot)) return slot;
+  return null;
+}
+
+// The manifest is written from state.remote rather than from the box: attaching a file
+// must not publish text the user has not chosen to send yet.
+const saveManifest = (files) => sendText(state.remote, files);
+
+$('btn-attach').addEventListener('click', () => $('file-input').click());
+
+$('file-input').addEventListener('change', async () => {
+  const chosen = [...$('file-input').files];
+  // Cleared first: picking the same file twice in a row must still fire a change event.
+  $('file-input').value = '';
+  setStatus('send-status', '');
+
+  for (const file of chosen) {
+    if (state.files.length >= MAX_FILES) {
+      setStatus('send-status', 'At most ' + MAX_FILES + ' files.', true);
+      break;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setStatus('send-status',
+        '"' + file.name + '" is larger than ' + humanSize(MAX_FILE_BYTES) + '.', true);
+      continue;
+    }
+    const slot = freeSlot();
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      // Bytes first, manifest second: a manifest is never allowed to name a slot that
+      // does not exist yet. The reverse order would show a peer a broken download.
+      await send(slot, bytes);
+      const next = [...state.files,
+        { slot, name: safeName(file.name), type: file.type || '', size: file.size }];
+      await saveManifest(next);
+      state.files = next;
+      renderFiles();
+    } catch (err) {
+      setStatus('send-status', reason(err), true);
+      break;
+    }
+  }
+});
+
+async function removeFile(file) {
+  const next = state.files.filter((other) => other.slot !== file.slot);
+  try {
+    // Manifest first here, for the same reason: no window where it names a dead slot.
+    await saveManifest(next);
+    state.files = next;
+    renderFiles();
+    await api('/api/clear', { room: room(), slot: file.slot });
+    delete state.seqs[file.slot];
+    await saveDevice();
+  } catch (err) {
+    setStatus('send-status', reason(err), true);
+  }
+}
+
+async function downloadFile(file) {
+  setStatus('send-status', '');
+  try {
+    const result = await fetchRecord(file.slot);
+    if (result.kind !== 'ok') {
+      setStatus('send-status', result.kind === 'empty'
+        ? 'That file is no longer on the server.'
+        : 'Could not decrypt that file.', true);
+      return;
+    }
+    const url = URL.createObjectURL(
+      new Blob([result.plaintext], { type: file.type || 'application/octet-stream' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (err) {
+    setStatus('send-status', reason(err), true);
+  }
+}
+
+// A name travels from another device and ends up in a download attribute: keep it to one
+// harmless path segment.
+const safeName = (name) => name.replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 120) || 'file';
 
 $('btn-repair').addEventListener('click', async () => {
   showCreated(await newCode(), true);

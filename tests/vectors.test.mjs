@@ -29,9 +29,9 @@ test('node:crypto can open what the browser sealed', () => {
   assert.ok(vectors.records.length >= 8);
   for (const record of vectors.records) {
     const { roomKey, encKey } = reference.derive(record.code);
-    assert.equal(reference.aad(roomKey, record.seq).toString('hex'), record.aad);
+    assert.equal(reference.aad(roomKey, record.slot, record.seq).toString('hex'), record.aad);
     const opened = reference.open(
-      encKey, roomKey, record.seq,
+      encKey, roomKey, record.slot, record.seq,
       Buffer.from(record.iv, 'hex'), Buffer.from(record.ct, 'hex'));
     assert.equal(opened.toString('utf8'), record.plaintext);
   }
@@ -41,7 +41,18 @@ test('a record cannot be opened at another sequence number', () => {
   for (const record of vectors.records) {
     const { roomKey, encKey } = reference.derive(record.code);
     assert.throws(() => reference.open(
-      encKey, roomKey, record.seq + 1,
+      encKey, roomKey, record.slot, record.seq + 1,
+      Buffer.from(record.iv, 'hex'), Buffer.from(record.ct, 'hex')));
+  }
+});
+
+test('a record cannot be lifted into another slot', () => {
+  // Without the slot in the AAD, a file record would open just as well in the text
+  // slot, letting an intercepting proxy shuffle attachments around inside a room.
+  for (const record of vectors.records) {
+    const { roomKey, encKey } = reference.derive(record.code);
+    assert.throws(() => reference.open(
+      encKey, roomKey, record.slot + 1, record.seq,
       Buffer.from(record.iv, 'hex'), Buffer.from(record.ct, 'hex')));
   }
 });

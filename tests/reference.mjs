@@ -50,18 +50,20 @@ export function derive(code) {
   };
 }
 
-export function aad(roomKey, seq) {
-  const suffix = Buffer.alloc(8);
-  suffix.writeBigUInt64BE(BigInt(seq));
+// roomKey || slot (4 bytes BE) || seq (8 bytes BE).
+export function aad(roomKey, slot, seq) {
+  const suffix = Buffer.alloc(12);
+  suffix.writeUInt32BE(slot, 0);
+  suffix.writeBigUInt64BE(BigInt(seq), 4);
   return Buffer.concat([Buffer.from(roomKey), suffix]);
 }
 
 // WebCrypto appends the 16-byte tag to the ciphertext; node:crypto wants it separately.
-export function open(encKey, roomKey, seq, iv, sealed) {
+export function open(encKey, roomKey, slot, seq, iv, sealed) {
   const body = sealed.subarray(0, sealed.length - 16);
   const tag = sealed.subarray(sealed.length - 16);
   const decipher = createDecipheriv('aes-256-gcm', encKey, iv);
-  decipher.setAAD(aad(roomKey, seq));
+  decipher.setAAD(aad(roomKey, slot, seq));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]);
 }
