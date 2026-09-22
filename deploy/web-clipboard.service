@@ -7,7 +7,7 @@
 #
 # Requires Node >= 22.5 for node:sqlite; Ubuntu's own nodejs package is older, see
 # README.md. Then install deploy/nginx-web-clipboard.conf exactly as in the Docker path:
-# nginx proxies to 127.0.0.1:8080 either way.
+# nginx proxies to 127.0.0.1:8833 either way.
 
 [Unit]
 Description=web-clipboard — end-to-end encrypted clipboard relay
@@ -23,7 +23,7 @@ ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/index.mjs
 # Listen on loopback only. nginx is the sole path in from outside; without this the
 # port would be reachable on every interface, unencrypted.
 Environment=HOST=127.0.0.1
-Environment=PORT=8080
+Environment=PORT=8833
 Environment=CLIPBOARD_DB=/var/lib/web-clipboard/web-clipboard.db
 # Environment=CLIPBOARD_TTL_SECONDS=86400
 

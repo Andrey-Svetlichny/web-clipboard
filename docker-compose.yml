@@ -11,7 +11,7 @@ services:
     # 127.0.0.1 prefix Docker would publish this on every interface, and its NAT rules
     # sit in front of ufw — the port would be open to the internet unencrypted.
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8833:8080"
 
 volumes:
   clipboard-data:

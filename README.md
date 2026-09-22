@@ -45,13 +45,16 @@ sudo apt-get install -y nodejs
 ```
 
 Then follow the header of `deploy/web-clipboard.service`. nginx is configured exactly as
-below either way — both paths put the app on `127.0.0.1:8080`.
+below either way — both paths put the app on `127.0.0.1:8833`. That port is hardcoded in
+two files, `deploy/web-clipboard.service` and `deploy/nginx-web-clipboard.conf`; change
+it in both or nginx proxies into nothing.
 
 ### If the server already runs nginx
 
 Caddy cannot share port 443, so let nginx terminate TLS and proxy to the app. This is
 what `docker-compose.yml` is set up for as committed: it publishes the app on
-`127.0.0.1:8080` and starts no Caddy.
+`127.0.0.1:8833` and starts no Caddy. Inside the container the app still listens on 8080
+— only the published host port has to match nginx.
 
 ```sh
 docker compose up -d --build
