@@ -37,7 +37,7 @@ p{margin:0 0 12px; color:var(--muted); font-size:14px}
 header{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px}
 .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px}
 .card-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px}
-.card-head h2{margin:0}
+.card-head h2{margin:0; min-width:0}
 textarea,input[type=text]{
   width:100%; font:15px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--ink); background:var(--bg); border:1px solid var(--line);
@@ -76,6 +76,11 @@ button.link:hover{color:var(--ink)}
 .note{font-size:13px; color:var(--muted); margin:10px 0 0}
 .status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
 .status.bad{color:var(--bad)}
+#send-status{font-size:13px; font-weight:400; color:var(--muted)}
+#send-status.bad{color:var(--bad)}
+/* The separator lives here so no call site has to prepend one, and it leaves with the
+   message: an empty element draws nothing. */
+#send-status:not(:empty)::before{content:'· '}
 .note.bad{color:var(--bad)}
 @media (max-width:430px){
   .item{flex-wrap:wrap; gap:9px}
@@ -148,7 +153,7 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 
   <div class="card">
     <div class="card-head">
-      <h2>Shared text <span id="age"></span></h2>
+      <h2>Shared text <span id="age"></span> <span id="send-status"></span></h2>
       <button class="icon" id="btn-refresh" aria-label="Refresh" title="Refresh">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
@@ -172,7 +177,6 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
         </svg>
       </button>
     </div>
-    <div class="status" id="send-status"></div>
   </div>
 
   <footer>
@@ -227,9 +231,7 @@ function setStatus(id, message, bad) {
 }
 
 // The only failures worth a word: the request did not get through.
-const reason = (err) => (err.status === 429
-  ? 'Too many requests — wait a moment.'
-  : 'Could not reach the server.');
+const reason = (err) => (err.status === 429 ? 'too many requests' : 'no connection');
 
 function b64u(bytes) {
   let binary = '';
@@ -363,8 +365,7 @@ async function saveDevice() {
       roomKey: state.roomKey, encKey: state.encKey, seqs: state.seqs,
     }, DB_KEY));
   } catch (err) {
-    setStatus('send-status', 'This browser will not keep the key — you will have to ' +
-      'enter the code again next time.', true);
+    setStatus('send-status', 'key not saved here', true);
   }
 }
 
@@ -597,15 +598,13 @@ async function refresh(quiet) {
   try {
     const result = await fetchText();
     if (result.kind === 'rollback') {
-      setStatus('send-status', 'The server offered an older item than this device has ' +
-        'already seen. Ignored.', true);
+      setStatus('send-status', 'ignored an older version', true);
       return;
     }
     if (result.kind === 'undecryptable') {
       // The box is the user's text as much as the room's, so it is not thrown away
       // because this end cannot read what the other end wrote.
-      setStatus('send-status', 'Could not decrypt this text — the other device may be ' +
-        'using a different code.', true);
+      setStatus('send-status', 'cannot decrypt — different code?', true);
       return;
     }
     if (result.kind === 'empty') {
@@ -623,7 +622,7 @@ async function refresh(quiet) {
       state.files = result.files;
       renderBox();
       if (text !== state.remote) {
-        setStatus('send-status', 'Newer text on the server — press Refresh to load it.');
+        setStatus('send-status', 'newer text — press Refresh');
       }
       return;
     }
@@ -812,12 +811,11 @@ $('file-input').addEventListener('change', async () => {
 
   for (const file of chosen) {
     if (state.files.length >= MAX_FILES) {
-      setStatus('send-status', 'At most ' + MAX_FILES + ' files.', true);
+      setStatus('send-status', 'at most ' + MAX_FILES + ' files', true);
       break;
     }
     if (file.size > MAX_FILE_BYTES) {
-      setStatus('send-status',
-        '"' + file.name + '" is larger than ' + humanSize(MAX_FILE_BYTES) + '.', true);
+      setStatus('send-status', 'file too large — ' + humanSize(MAX_FILE_BYTES) + ' max', true);
       continue;
     }
     const slot = freeSlot();
@@ -858,9 +856,8 @@ async function downloadFile(file) {
   try {
     const result = await fetchRecord(file.slot);
     if (result.kind !== 'ok') {
-      setStatus('send-status', result.kind === 'empty'
-        ? 'That file is no longer on the server.'
-        : 'Could not decrypt that file.', true);
+      setStatus('send-status',
+        result.kind === 'empty' ? 'file is gone' : 'cannot decrypt that file', true);
       return;
     }
     const url = URL.createObjectURL(
