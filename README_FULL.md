@@ -109,12 +109,34 @@ Node 22.5 or newer — the server uses the built-in `node:sqlite`. There are **n
 dependencies**, so there is nothing to install:
 
 ```sh
-npm test                               # 28 tests
-npm start                              # PORT=8080 NOTE_DB=./note.db npm start, locally
-node tests/smoke.mjs http://127.0.0.1:8080
+npm run dev     # http://localhost:8080, restarts on every edit under web/ and server/
+npm test        # 36 tests, no server needed
+npm run smoke   # end-to-end against the dev server; pass a URL for anywhere else
 ```
 
-`localhost` counts as a secure context, so WebCrypto works locally without TLS.
+`npm run dev` points the database at `./dev.db` (git-ignored, along with its two WAL
+siblings) and binds to loopback. It leaves `PORT` at its 8080 default so `npm run smoke`
+needs no argument. Without it you would have to set `CLIPBOARD_DB` by hand: the default is
+`/data/web-clipboard.db`, which exists in the container and nowhere else, and SQLite
+reports its absence as a bare "disk I/O error".
+
+`localhost` counts as a secure context, so WebCrypto works locally without TLS. Nothing
+else does. Opening the dev server from a phone at `http://192.168.x.x:8080` shows "this
+browser will not let the page encrypt anything" instead of the pairing screen — the page
+refusing to pretend, not a bug. Testing across devices needs real HTTPS: the Caddy stack
+with a domain, or a tunnel.
+
+**The page is read once, at startup.** `createApp()` calls `loadAssets()` and serves that
+same buffer for the life of the process, because the CSP hashes are computed from those
+exact bytes. `npm run dev` covers this with `--watch-path=web`. Anywhere else, editing
+`web/index.html` changes nothing until the process restarts — `systemctl restart
+web-clipboard`, or `docker compose up -d --build` under Docker, where `web/` is baked into
+the image and a plain restart re-runs the same layers.
+
+`--watch-path` is macOS and Windows only. On Linux, drop those two flags from the `dev`
+script: plain `--watch` still catches server edits, and HTML edits need a manual restart.
+Either way a restart takes a few seconds, because the SIGTERM handler calls
+`server.close()`, which waits for open keep-alive connections to drain.
 
 `tests/smoke.mjs` drives the real client crypto — it pulls the core straight out of
 `web/index.html` — through a live server, so it exercises the same code the browser runs.
@@ -125,7 +147,9 @@ node tests/smoke.mjs http://127.0.0.1:8080
 npm run vectors
 ```
 
-The `vectors.json is not stale` test fails if you forget. The vectors pin the browser
+The `vectors.json is not stale` test fails if you forget. Read the diff afterwards:
+`codes` and `normalize` should be byte-identical unless the key schedule really changed,
+so movement there means something cryptographic shifted that perhaps should not have. The vectors pin the browser
 against `tests/reference.mjs`, which implements `spec.md` independently: HKDF expanded by
 hand from RFC 5869 rather than called through WebCrypto, and AES-GCM through
 `node:crypto` rather than `crypto.subtle`. A key-schedule mismatch is otherwise silent at
@@ -141,7 +165,7 @@ origin.
 ```
 spec.md              the protocol — read this before changing anything cryptographic
 server/index.mjs     three endpoints, static serving, CSP hash, security headers
-server/store.mjs     one record per room in SQLite, sequence rules, TTL
+server/store.mjs     rooms and their numbered records in SQLite, sequence rules, TTL
 server/ratelimit.mjs token buckets per room and per IP
 web/index.html       the entire client: markup, style and script, no dependencies
 tests/reference.mjs  spec.md reimplemented against node:crypto, for cross-checking

@@ -86,6 +86,20 @@ Then open `https://<your domain>` on your PC, choose **Create a new code**, and 
 code in your password manager. On the work VM, open the same address, choose **I have a
 code**, and type those twenty characters. That is the only place you ever type them.
 
+## Development
+
+Node 22.5 or newer. Nothing to install, nothing to build.
+
+```sh
+npm run dev     # http://localhost:8080, restarts on edit
+npm test
+npm run smoke   # end-to-end, against a running npm run dev
+```
+
+See [README_FULL.md](README_FULL.md#developing) for the rest: why the page needs a
+restart to change, why it only works on localhost or HTTPS, and when to regenerate the
+test vectors.
+
 ## Documentation
 
 - **[README_FULL.md](README_FULL.md)** — what it protects against and what it does not,

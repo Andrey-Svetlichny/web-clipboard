@@ -1,0 +1,4 @@
+# The dev server's database. WAL mode means three files, not one.
+dev.db
+dev.db-shm
+dev.db-wal
