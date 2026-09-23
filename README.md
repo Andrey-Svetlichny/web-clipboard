@@ -55,6 +55,12 @@ curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
+An nvm-installed Node will not do here: nvm puts the binary under a user's
+home directory and only adds it to `PATH` via shell rc files, which systemd
+never sources. The unit also runs with `ProtectHome=yes`, which blocks
+access to `/home` entirely. Use the system-wide install above so
+`/usr/bin/node` actually exists.
+
 Then follow the header of `deploy/web-clipboard.service`. nginx is configured exactly as
 below either way — both paths put the app on `127.0.0.1:8833`. That port is hardcoded in
 two files, `deploy/web-clipboard.service` and `deploy/nginx-web-clipboard.conf`; change
