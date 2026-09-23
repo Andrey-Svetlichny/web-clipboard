@@ -31,13 +31,23 @@ body{
   -webkit-text-size-adjust:100%;
 }
 main{max-width:640px; margin:0 auto; padding:20px 16px 56px; padding-bottom:calc(56px + env(safe-area-inset-bottom))}
-h1{font-size:17px; font-weight:600; margin:0; letter-spacing:.01em}
 h2{font-size:15px; font-weight:600; margin:0 0 10px}
 p{margin:0 0 12px; color:var(--muted); font-size:14px}
-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px}
 .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px}
 .card-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px}
-.card-head h2{margin:0; min-width:0}
+.card-head h2{margin:0; min-width:0; flex:1 1 auto}
+/* Тег в селекторе обязателен: правило textarea,input[type=text] специфичнее простого
+   класса и иначе вернуло бы полю рамку и фон. */
+input.tab-name{
+  width:100%; font:600 15px/1.5 inherit; color:var(--ink); background:none; border:none;
+  border-radius:7px; padding:3px 7px; margin:-3px -7px;
+}
+input.tab-name::placeholder{color:var(--muted); font-weight:400}
+input.tab-name:hover{background:var(--bg)}
+input.tab-name:focus{background:var(--bg); outline:2px solid var(--accent); outline-offset:-1px}
+.meta{font-size:13px; color:var(--muted); margin:0 0 10px; min-height:0}
+.meta span:not(:empty)~span:not(:empty)::before{content:'· '}
+.meta #send-status.bad{color:var(--bad)}
 textarea,input[type=text]{
   width:100%; font:15px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--ink); background:var(--bg); border:1px solid var(--line);
@@ -81,11 +91,6 @@ button.link:hover{color:var(--ink)}
 .note{font-size:13px; color:var(--muted); margin:10px 0 0}
 .status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
 .status.bad{color:var(--bad)}
-#send-status{font-size:13px; font-weight:400; color:var(--muted)}
-#send-status.bad{color:var(--bad)}
-/* The separator lives here so no call site has to prepend one, and it leaves with the
-   message: an empty element draws nothing. */
-#send-status:not(:empty)::before{content:'· '}
 .note.bad{color:var(--bad)}
 footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap:wrap}
 .offscreen{position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none}
@@ -99,7 +104,6 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="pair" hidden>
-  <header><h1>Note</h1></header>
   <div class="card">
     <h2>Set up this device</h2>
     <p id="pair-note">Create a code on your own PC, then type that same code once on the
@@ -112,7 +116,6 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="created" hidden>
-  <header><h1>Note</h1></header>
   <div class="card">
     <div class="qr" id="qr"></div>
     <h2>Your code</h2>
@@ -131,7 +134,6 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="enter" hidden>
-  <header><h1>Note</h1></header>
   <div class="card">
     <h2>Enter your code</h2>
     <input type="text" id="code-input" inputmode="latin" autocomplete="off"
@@ -148,19 +150,18 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
 </div>
 
 <div class="screen" data-screen="main" hidden>
-  <header>
-    <h1>Note</h1>
-  </header>
-
   <div class="card">
     <div class="card-head">
-      <h2>Shared text <span id="age"></span> <span id="send-status"></span></h2>
+      <h2><input class="tab-name" id="tab-name" type="text" maxlength="40"
+                 autocomplete="off" spellcheck="false"
+                 aria-label="Name for this tab" title="Rename this tab"></h2>
       <button class="icon" id="btn-refresh" aria-label="Refresh" title="Refresh">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
         </svg>
       </button>
     </div>
+    <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
     <textarea id="box" placeholder="Nothing here yet. Type something and press Send."
               autocomplete="off" spellcheck="false"></textarea>
     <div id="files"></div>
@@ -212,7 +213,10 @@ const state = {
   roomKey: null, encKey: null, seqs: {}, persist: true,
   // remote is the text the server holds; files is the manifest from slot 0. File bytes
   // are never held here: they are fetched when someone asks for them.
-  remote: '', ts: 0, files: [],
+  remote: '', ts: 0, files: [], from: '',
+  // name — это моя метка для собеседника («Вася»), она же заголовок вкладки. Ни в одну
+  // запись она не уходит: для той стороны она смысла не имеет.
+  name: '',
 };
 
 // --- tiny helpers -----------------------------------------------------------
@@ -363,7 +367,7 @@ async function saveDevice() {
   try {
     const db = await openDb();
     await tx(db, 'readwrite', (s) => s.put({
-      roomKey: state.roomKey, encKey: state.encKey, seqs: state.seqs,
+      roomKey: state.roomKey, encKey: state.encKey, seqs: state.seqs, name: state.name,
     }, DB_KEY));
   } catch (err) {
     setStatus('send-status', 'key not saved here', true);
@@ -435,6 +439,7 @@ async function send(slot, plaintext) {
 // attachment in the same fetch that brings it the text.
 const sendText = (text, files) => send(TEXT_SLOT, ENC.encode(JSON.stringify({
   v: 1, ts: Math.floor(Date.now() / 1000), items: parseItems(text), files,
+  from: describeAgent(),
 })));
 
 async function fetchRecord(slot) {
@@ -477,8 +482,13 @@ async function fetchText() {
   const items = Array.isArray(payload && payload.items) ? payload.items.filter(
     (item) => item && typeof item.text === 'string') : [];
   return { kind: 'ok', items, files: validFiles(payload && payload.files),
-    ts: (payload.ts || 0) * 1000 };
+    from: validFrom(payload && payload.from), ts: (payload.ts || 0) * 1000 };
 }
+
+// Строка приходит от другого устройства, попадает в разметку и может быть любой:
+// режем длину и управляющие символы, чтобы она не растянула строку и не съехала.
+const validFrom = (from) => (typeof from === 'string'
+  ? from.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 48) : '');
 
 // Whatever a peer put in the manifest, only entries this client can act on survive:
 // a usable slot, a name to show, and a size to display.
@@ -534,7 +544,9 @@ function syncSend() {
 }
 
 function renderBox() {
-  $('age').textContent = state.remote && state.ts ? '· ' + ago(state.ts) : '';
+  const shown = state.remote || state.files.length;
+  $('from').textContent = shown && state.from ? 'from ' + state.from : '';
+  $('age').textContent = shown && state.ts ? ago(state.ts) : '';
   renderFiles();
   syncSend();
 }
@@ -580,10 +592,11 @@ function renderFiles() {
 // more than one item, and dropping the rest would silently lose text.
 const textOf = (items) => items.map((item) => item.text).join('\n');
 
-function load(text, files) {
+function load(text, files, from) {
   $('box').value = text;
   state.remote = text;
   state.files = files;
+  state.from = from || '';
   renderBox();
 }
 
@@ -610,8 +623,8 @@ async function refresh(quiet) {
     }
     if (result.kind === 'empty') {
       state.ts = 0;
-      if (!dirty()) load('', []);
-      else { state.remote = ''; state.files = []; renderBox(); }
+      if (!dirty()) load('', [], '');
+      else { state.remote = ''; state.files = []; state.from = ''; renderBox(); }
       return;
     }
     const text = textOf(result.items);
@@ -621,6 +634,7 @@ async function refresh(quiet) {
     // draft, so they land either way.
     if (quiet && dirty()) {
       state.files = result.files;
+      state.from = result.from;
       renderBox();
       if (text !== state.remote) {
         setStatus('send-status', 'newer text — press Refresh');
@@ -628,7 +642,7 @@ async function refresh(quiet) {
       return;
     }
     state.ts = result.ts;
-    load(text, result.files);
+    load(text, result.files, result.from);
     if (!quiet) setStatus('send-status', '');
   } catch (err) {
     setStatus('send-status', reason(err), true);
@@ -662,7 +676,7 @@ async function activate(code, persist) {
     }
   }
   show('main');
-  load('', []);
+  load('', [], '');
   await refresh(true);
 }
 
@@ -673,9 +687,10 @@ async function resume() {
     ? saved.roomKey : new Uint8Array(saved.roomKey);
   state.encKey = saved.encKey;
   state.seqs = (saved.seqs && typeof saved.seqs === 'object') ? saved.seqs : {};
+  applyName(typeof saved.name === 'string' ? saved.name : '');
   state.persist = true;
   show('main');
-  load('', []);
+  load('', [], '');
   await refresh(true);
   return true;
 }
@@ -969,6 +984,45 @@ function qrMatrix(text) {
   return { size, version, modules: best.modules };
 }
 
+// --- who sent it ------------------------------------------------------------
+// Короткая строка о себе: «Chrome on Windows». Устройство знает это о себе само, поэтому
+// сервер в этом не участвует и ничего лишнего в записи не оседает.
+
+const BROWSERS = [
+  [/Edg\//, 'Edge'], [/OPR\/|Opera/, 'Opera'], [/Firefox\//, 'Firefox'],
+  [/Chrome\//, 'Chrome'], [/Safari\//, 'Safari'],
+];
+const PLATFORMS = [
+  [/iPhone/, 'iPhone'], [/iPad/, 'iPad'], [/Android/, 'Android'], [/CrOS/, 'ChromeOS'],
+  [/Windows/, 'Windows'], [/Mac OS X|Macintosh/, 'macOS'], [/Linux/, 'Linux'],
+];
+const BRAND_NAMES = { 'Google Chrome': 'Chrome', 'Microsoft Edge': 'Edge' };
+
+function describeAgent(nav) {
+  const source = nav || (typeof navigator === 'undefined' ? {} : navigator);
+  const match = (table, text) => {
+    for (const [pattern, name] of table) if (pattern.test(text)) return name;
+    return '';
+  };
+
+  let browser = '';
+  let platform = '';
+  const hints = source.userAgentData;
+  if (hints && Array.isArray(hints.brands)) {
+    // Chromium раскладывает бренды на три штуки, из которых нужен один осмысленный.
+    const brand = hints.brands.map((entry) => entry && entry.brand)
+      .find((name) => name && !/not[^a-z]*a[^a-z]*brand/i.test(name) && name !== 'Chromium');
+    if (brand) browser = BRAND_NAMES[brand] || brand;
+    if (hints.platform) platform = hints.platform;
+  }
+
+  const ua = source.userAgent || '';
+  if (!browser) browser = match(BROWSERS, ua);
+  if (!platform) platform = match(PLATFORMS, ua);
+  if (browser && platform) return `${browser} on ${platform}`;
+  return browser || platform || '';
+}
+
 // --- test hook --------------------------------------------------------------
 // Inert in a browser, where document is always defined. It exists so the vector
 // harness runs this exact code rather than a second implementation of it that
@@ -977,7 +1031,7 @@ function qrMatrix(text) {
 if (typeof document === 'undefined') {
   globalThis.__clipboardCore = {
     ALPHABET, CODE_LEN, BODY_LEN, checkChar, newCode, normalize, grouped,
-    derive, aad, seal, unseal, parseItems, b64u, unb64u, qrMatrix,
+    derive, aad, seal, unseal, parseItems, b64u, unb64u, qrMatrix, describeAgent,
   };
   return;
 }
@@ -1022,6 +1076,40 @@ function renderQr(host, text) {
   svg.append(background, path);
   host.appendChild(svg);
 }
+
+// Заголовок, каким вкладка называется до того, как её переименовали: он же плейсхолдер.
+const DEFAULT_TITLE = document.title;
+let nameTimer = null;
+
+function applyName(name) {
+  state.name = name;
+  $('tab-name').value = name;
+  $('tab-name').placeholder = DEFAULT_TITLE;
+  document.title = name || DEFAULT_TITLE;
+}
+
+applyName('');   // плейсхолдер на месте и до того, как устройство спарено
+
+$('tab-name').addEventListener('input', () => {
+  state.name = $('tab-name').value;
+  document.title = state.name.trim() || DEFAULT_TITLE;
+  clearTimeout(nameTimer);
+  nameTimer = setTimeout(() => saveDevice(), 400);
+});
+
+// Запись на диск идёт через saveDevice, то есть только при «запомнить это устройство»:
+// на чужой машине метка остаётся в памяти вкладки и следа не оставляет.
+for (const event of ['blur', 'change']) {
+  $('tab-name').addEventListener(event, () => {
+    clearTimeout(nameTimer);
+    applyName($('tab-name').value.trim());
+    saveDevice();
+  });
+}
+
+$('tab-name').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') $('tab-name').blur();
+});
 
 function showCreated(code, isRotation) {
   pendingCode = code;
@@ -1099,14 +1187,14 @@ $('btn-send').addEventListener('click', async () => {
       // against a value the server never saw. The button greying out is the receipt;
       // there is nothing to announce.
       state.ts = Date.now();
-      load(items.length ? items[0].text : '', state.files);
+      load(items.length ? items[0].text : '', state.files, describeAgent());
     } else {
       // Nothing left to share at all: drop the room, attachments and seq floors with it.
       await api('/api/clear', { room: room() });
       state.seqs = {};
       state.ts = 0;
       await saveDevice();
-      load('', []);
+      load('', [], '');
     }
   } catch (err) {
     setStatus('send-status', reason(err), true);
