@@ -15,7 +15,7 @@ the whole room, so an attachment never outlives the text that names it.
 Raising the limits means changing three things together, or the largest file will 413 at
 whichever one you forgot: `MAX_BODY`/`MAX_CT` in `server/index.mjs`, `client_max_body_size`
 in `deploy/nginx-web-clipboard.conf`, and `max_size` in the `Caddyfile`. `MAX_FILES` and
-`MAX_FILE_BYTES` in `web/index.html` are what the page itself enforces.
+`MAX_FILE_BYTES` in `web/api.js` are what the page itself enforces.
 
 ## Install
 

@@ -1,15 +1,12 @@
-// End-to-end smoke test against a running server, driving the crypto core straight
-// out of web/index.html. Usage: node tests/smoke.mjs [base-url]
+// End-to-end smoke test against a running server, driving the very modules the browser
+// loads. Usage: node tests/smoke.mjs [base-url]
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import * as codes from '../web/code.js';
+import * as sealing from '../web/crypto.js';
+import { parseItems } from '../web/api.js';
 
+const core = { ...codes, ...sealing, parseItems };
 const base = (process.argv[2] || 'http://127.0.0.1:8080').replace(/\/$/, '');
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const html = readFileSync(path.join(root, 'web', 'index.html'), 'utf8');
-new Function(/<script[^>]*>([\s\S]*?)<\/script>/.exec(html)[1])();
-const core = globalThis.__clipboardCore;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -117,7 +114,8 @@ check('room is empty again', (await api('get', { room, slot: TEXT })).status ===
 
 const page = await fetch(`${base}/`);
 const csp = page.headers.get('content-security-policy') || '';
-check('page ships a hash-based CSP with no unsafe-inline',
-  csp.includes("script-src 'sha256-") && !csp.includes('unsafe-inline'));
+check('page ships a locked-down CSP with no unsafe-inline',
+  csp.includes("script-src 'self'") && csp.includes("style-src 'sha256-")
+  && csp.includes("default-src 'none'") && !csp.includes('unsafe-inline'));
 
 process.exit(failures ? 1 : 0);

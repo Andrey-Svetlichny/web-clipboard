@@ -1,21 +1,16 @@
-// Emits tests/vectors.json by running the crypto core out of web/index.html itself.
+// Emits tests/vectors.json by running the very modules the browser loads.
 // Node >= 18. Usage: node tests/make_vectors.mjs [outfile]
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import * as codes from '../web/code.js';
+import * as sealing from '../web/crypto.js';
+import { parseItems } from '../web/api.js';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const html = readFileSync(path.join(root, 'web', 'index.html'), 'utf8');
-
-const block = /<script[^>]*>([\s\S]*?)<\/script>/.exec(html);
-if (!block) throw new Error('no inline <script> block in web/index.html');
-
-// document is undefined here, so the page script exports its core and stops before
-// touching the DOM. See the "test hook" section in index.html.
-new Function(block[1])();
-const core = globalThis.__clipboardCore;
-if (!core) throw new Error('index.html did not export its core — test hook missing?');
+const core = { ...codes, ...sealing, parseItems };
 
 const encoder = new TextEncoder();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');

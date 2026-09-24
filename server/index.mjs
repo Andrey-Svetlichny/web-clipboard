@@ -59,12 +59,18 @@ function inlineHash(html, tag) {
 export function loadAssets(webDir = WEB_DIR) {
   const index = readFileSync(path.join(webDir, 'index.html'));
   const icons = new Map();
+  const scripts = new Map();
+  // Маски строгие: из каталога отдаётся ровно то, что перечислено, и ничего соседнего.
   for (const name of readdirSync(webDir)) {
     if (/^icon-[\w.-]+\.png$/.test(name)) icons.set(name, readFileSync(path.join(webDir, name)));
+    if (/^[\w.-]+\.js$/.test(name)) scripts.set(name, readFileSync(path.join(webDir, name)));
   }
   const csp = [
     "default-src 'none'",
-    `script-src ${inlineHash(index, 'script')}`,
+    // Скрипты — модули с этого же домена. Слабее хеша лишь в теории: сюда нечего
+    // подложить, сервер отдаёт только перечисленное выше, а вложения уходят JSON-ом.
+    "script-src 'self'",
+    // Стили остаются внутри страницы, поэтому по-прежнему прибиты хешем.
     `style-src ${inlineHash(index, 'style')}`,
     "connect-src 'self'",
     "img-src 'self' data:",
@@ -73,7 +79,9 @@ export function loadAssets(webDir = WEB_DIR) {
     "form-action 'none'",
     "frame-ancestors 'none'",
   ].join('; ');
-  return { index, manifest: readFileSync(path.join(webDir, 'manifest.json')), icons, csp };
+  return {
+    index, manifest: readFileSync(path.join(webDir, 'manifest.json')), icons, scripts, csp,
+  };
 }
 
 // --------------------------------------------------------------------- transport
@@ -251,8 +259,12 @@ export function createApp({
       const route = routes[`${req.method} ${pathname}`];
       if (route) return await route(req, res);
 
-      if (req.method === 'GET' && assets.icons.has(pathname.slice(1))) {
-        return send(res, 200, assets.icons.get(pathname.slice(1)), 'image/png');
+      const name = pathname.slice(1);
+      if (req.method === 'GET' && assets.icons.has(name)) {
+        return send(res, 200, assets.icons.get(name), 'image/png');
+      }
+      if (req.method === 'GET' && assets.scripts.has(name)) {
+        return send(res, 200, assets.scripts.get(name), 'text/javascript; charset=utf-8');
       }
       return sendJson(res, 404, { error: 'not found' });
     } catch (error) {

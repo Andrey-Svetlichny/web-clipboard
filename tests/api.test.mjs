@@ -130,17 +130,25 @@ test('the per-room rate limit bites', (t) => withApp(t, async ({ app, post }) =>
   assert.ok(seen.has(429), [...seen].join(','));
 }));
 
-test('the CSP header matches the script actually served', (t) => withApp(t, async ({ base }) => {
-  // Catches the CRLF trap, and every future "edited the JS and forgot".
+test('the CSP still pins the inline style to its bytes', (t) => withApp(t, async ({ base }) => {
+  // Catches the CRLF trap, and every future "edited the CSS and forgot". Scripts are
+  // modules now and covered by 'self' instead; the style stays inline and stays hashed.
   const response = await fetch(`${base}/`);
   const csp = response.headers.get('content-security-policy');
-  const body = Buffer.from(await response.arrayBuffer());
-  for (const [tag, directive] of [['script', 'script-src'], ['style', 'style-src']]) {
-    const text = body.toString('binary');
-    const match = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`).exec(text);
-    const digest = createHash('sha256').update(Buffer.from(match[1], 'binary')).digest('base64');
-    assert.ok(csp.includes(`${directive} 'sha256-${digest}'`), directive);
-  }
+  const text = Buffer.from(await response.arrayBuffer()).toString('binary');
+  const match = /<style[^>]*>([\s\S]*?)<\/style>/.exec(text);
+  const digest = createHash('sha256').update(Buffer.from(match[1], 'binary')).digest('base64');
+  assert.ok(csp.includes(`style-src 'sha256-${digest}'`), csp);
+  assert.ok(csp.includes("script-src 'self'"), csp);
+  assert.equal(csp.includes('unsafe-inline'), false);
+}));
+
+test('modules are served, and only the ones that exist', (t) => withApp(t, async ({ base }) => {
+  const response = await fetch(`${base}/app.js`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/javascript/);
+  assert.equal((await fetch(`${base}/qr.js`)).status, 200);
+  assert.equal((await fetch(`${base}/nope.js`)).status, 404);
 }));
 
 test('the page has no inline handlers or style attributes', (t) => withApp(t, async ({ base }) => {
@@ -148,7 +156,9 @@ test('the page has no inline handlers or style attributes', (t) => withApp(t, as
   const body = await (await fetch(`${base}/`)).text();
   assert.equal(/\son[a-z]+\s*=/.test(body), false);
   assert.equal(/\sstyle\s*=/.test(body), false);
+  // Ровно один <script>, и он без тела: код приходит модулями с того же домена.
   assert.equal(body.split('<script').length - 1, 1);
+  assert.match(body, /<script type="module" src="\/app\.js"><\/script>/);
   assert.equal(body.split('<style').length - 1, 1);
 }));
 
@@ -160,7 +170,7 @@ test('the page loads nothing from another origin', (t) => withApp(t, async ({ ba
 test('every element the script reaches for exists', (t) => withApp(t, async ({ base }) => {
   // A mistyped id throws at load time in the browser and nowhere else.
   const body = await (await fetch(`${base}/`)).text();
-  const script = /<script[^>]*>([\s\S]*?)<\/script>/.exec(body)[1];
+  const script = await (await fetch(`${base}/app.js`)).text();
   const wanted = new Set([...script.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]));
   const present = new Set([...body.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   assert.ok(wanted.size > 0);

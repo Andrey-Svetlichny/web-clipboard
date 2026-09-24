@@ -1,14 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-
-// Вытаскиваем функцию прямо из страницы, как это делает tests/smoke.mjs.
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const html = readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
-new Function(/<script[^>]*>([\s\S]*?)<\/script>/.exec(html)[1])();
-const { describeAgent } = globalThis.__clipboardCore;
+import { describeAgent } from '../web/agent.js';
 
 test('userAgent разбирается в «браузер on платформа»', () => {
   const cases = [

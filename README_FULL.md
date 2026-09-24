@@ -126,22 +126,23 @@ browser will not let the page encrypt anything" instead of the pairing screen �
 refusing to pretend, not a bug. Testing across devices needs real HTTPS: the Caddy stack
 with a domain, or a tunnel.
 
-**The page is read once, at startup.** `createApp()` calls `loadAssets()` and serves that
-same buffer for the life of the process, because the CSP hashes are computed from those
-exact bytes. `npm run dev` covers this with `--watch-path=web`. Anywhere else, editing
-`web/index.html` changes nothing until the process restarts — `systemctl restart
-web-clipboard`, or `docker compose up -d --build` under Docker, where `web/` is baked into
-the image and a plain restart re-runs the same layers.
+**The page is read once, at startup.** `createApp()` calls `loadAssets()` and serves those
+same buffers for the life of the process, because the CSP hash for the inline style is
+computed from those exact bytes. `npm run dev` covers this with `--watch-path=web`.
+Anywhere else, editing anything under `web/` changes nothing until the process restarts —
+`systemctl restart web-clipboard`, or `docker compose up -d --build` under Docker, where
+`web/` is baked into the image and a plain restart re-runs the same layers.
 
 `--watch-path` is macOS and Windows only. On Linux, drop those two flags from the `dev`
-script: plain `--watch` still catches server edits, and HTML edits need a manual restart.
+script: plain `--watch` still catches server edits, and changes under `web/` need a manual
+restart.
 Either way a restart takes a few seconds, because the SIGTERM handler calls
 `server.close()`, which waits for open keep-alive connections to drain.
 
-`tests/smoke.mjs` drives the real client crypto — it pulls the core straight out of
-`web/index.html` — through a live server, so it exercises the same code the browser runs.
+`tests/smoke.mjs` drives the real client crypto — it imports the very modules the browser
+loads — through a live server, so it exercises the same code the browser runs.
 
-**After editing the crypto in `web/index.html`, regenerate the vectors:**
+**After editing `web/crypto.js` or `web/code.js`, regenerate the vectors:**
 
 ```sh
 npm run vectors
@@ -156,18 +157,32 @@ hand from RFC 5869 rather than called through WebCrypto, and AES-GCM through
 runtime and horrible to debug.
 
 Two rules the page has to keep, both enforced by tests, both failing silently in a browser
-if broken: exactly one `<script>` and one `<style>` block with no `onclick=` handlers and
-no `style=` attributes (a hash-based CSP blocks those), and nothing loaded from another
-origin.
+if broken: no `onclick=` handlers and no `style=` attributes anywhere, and nothing loaded
+from another origin. The inline `<style>` stays pinned to its bytes by a hash, so a stray
+inline style is blocked rather than merely discouraged.
 
 ## Layout
 
 ```
 spec.md              the protocol — read this before changing anything cryptographic
-server/index.mjs     three endpoints, static serving, CSP hash, security headers
+server/index.mjs     three endpoints, static serving, CSP, security headers
 server/store.mjs     rooms and their numbered records in SQLite, sequence rules, TTL
 server/ratelimit.mjs token buckets per room and per IP
-web/index.html       the entire client: markup, style and script, no dependencies
+web/index.html       markup and style only
+web/app.js           state, rendering, handlers — the only module that touches the DOM
+web/api.js           put/get/clear, sealing and opening records; knows nothing of the DOM
+web/crypto.js        base64url, HKDF, AES-GCM — mirrored by tests/reference.mjs
+web/code.js          pairing code: alphabet, check character, normalising what was typed
+web/store.js         device keys in IndexedDB
+web/qr.js            QR encoder, byte mode, level M, versions 1-6
+web/agent.js         «Chrome on Windows» from navigator
 tests/reference.mjs  spec.md reimplemented against node:crypto, for cross-checking
 tests/make_vectors.mjs, tests/smoke.mjs
 ```
+
+ES modules, served as-is: no bundler, no build step, and still no dependency reaches the
+page that holds the keys. Because scripts are now separate files, `script-src` is `'self'`
+rather than a hash; the inline `<style>` is still pinned to its bytes. Nothing else can be
+placed on this origin — the server serves `index.html`, the manifest, and files matching
+`^icon-[\w.-]+\.png$` or `^[\w.-]+\.js$` read from `web/` at boot, and attachments never
+come back as files, only as JSON inside `/api/get`.

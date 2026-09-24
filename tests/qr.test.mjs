@@ -1,17 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-
+import { qrMatrix } from '../web/qr.js';
 import { decode, functionMap } from './qr_reader.mjs';
-
-// The encoder is pulled straight out of the page, like tests/smoke.mjs does, so these
-// exercise exactly what ships rather than a copy.
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const html = readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
-new Function(/<script[^>]*>([\s\S]*?)<\/script>/.exec(html)[1])();
-const { qrMatrix } = globalThis.__clipboardCore;
 
 // Capacity in bytes for versions 1-6 at level M.
 const CAPACITY = [14, 26, 42, 62, 84, 106];
