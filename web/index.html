@@ -30,21 +30,46 @@ body{
   font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-text-size-adjust:100%;
 }
-main{max-width:640px; margin:0 auto; padding:20px 16px 56px; padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+/* dvh, а не vh: на телефоне vh считается от экрана без учёта сворачивающейся панели
+   браузера, и низ страницы уезжает под неё. */
+main{
+  max-width:640px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;
+  padding:20px 16px 20px; padding-bottom:calc(20px + env(safe-area-inset-bottom));
+}
+/* min-height:0 обязателен всюду по цепочке, иначе textarea не даст контейнеру сжаться. */
+.screen[data-screen="main"]{display:flex; flex-direction:column; flex:1 1 auto; min-height:0}
+.screen[data-screen="main"] .card{
+  display:flex; flex-direction:column; flex:1 1 auto; min-height:0; position:relative;
+}
 h2{font-size:15px; font-weight:600; margin:0 0 10px}
 p{margin:0 0 12px; color:var(--muted); font-size:14px}
 .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px}
 .card-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px}
 .card-head h2{margin:0; min-width:0; flex:1 1 auto}
 /* Тег в селекторе обязателен: правило textarea,input[type=text] специфичнее простого
-   класса и иначе вернуло бы полю рамку и фон. */
+   класса и иначе вернуло бы полю рамку и фон.
+   Ширина — по содержимому через атрибут size: растянутое на всю ширину поле подсвечивалось
+   при наведении серой полосой и читалось как форма, а не как заголовок. */
 input.tab-name{
-  width:100%; font:600 15px/1.5 inherit; color:var(--ink); background:none; border:none;
-  border-radius:7px; padding:3px 7px; margin:-3px -7px;
+  width:auto; max-width:100%; font:600 15px/1.5 inherit; color:var(--ink);
+  background:none; border:none; border-radius:7px; padding:3px 7px; margin:-3px -7px;
+  text-overflow:ellipsis;
 }
 input.tab-name::placeholder{color:var(--muted); font-weight:400}
-input.tab-name:hover{background:var(--bg)}
+input.tab-name:hover{background:var(--bg); cursor:text}
 input.tab-name:focus{background:var(--bg); outline:2px solid var(--accent); outline-offset:-1px}
+/* Только там, где есть мышь: на телефоне карточка и так во весь экран. */
+.grip{display:none}
+@media (hover:hover) and (pointer:fine){
+  .grip{
+    display:block; position:absolute; right:3px; bottom:3px; width:16px; height:16px;
+    cursor:nwse-resize; touch-action:none;
+    background:
+      linear-gradient(135deg, transparent 46%, var(--line) 46%, var(--line) 54%, transparent 54%),
+      linear-gradient(135deg, transparent 71%, var(--line) 71%, var(--line) 79%, transparent 79%);
+  }
+  .grip:hover{filter:brightness(1.6)}
+}
 .meta{font-size:13px; color:var(--muted); margin:0 0 10px; min-height:0}
 .meta span:not(:empty)~span:not(:empty)::before{content:'· '}
 .meta #send-status.bad{color:var(--bad)}
@@ -53,7 +78,9 @@ textarea,input[type=text]{
   color:var(--ink); background:var(--bg); border:1px solid var(--line);
   border-radius:9px; padding:11px 12px; resize:vertical;
 }
-textarea{min-height:180px}
+textarea{min-height:180px; resize:vertical}
+/* Размер тянется за угол карточки, а не за собственный уголок поля. */
+#box{flex:1 1 auto; min-height:120px; resize:none}
 textarea:focus,input[type=text]:focus{outline:2px solid var(--accent); outline-offset:-1px}
 button{
   font:inherit; font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
@@ -179,12 +206,28 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
         </svg>
       </button>
     </div>
+    <div class="grip" id="grip" title="Drag to resize, double-click to fill"></div>
   </div>
 
   <footer>
+    <button class="link" id="btn-settings">Settings</button>
     <button class="link" id="btn-repair">New code</button>
     <button class="link" id="btn-unlink">Unlink this device</button>
   </footer>
+</div>
+
+<div class="screen" data-screen="settings" hidden>
+  <div class="card">
+    <h2>This device</h2>
+    <p>Shown to your other devices next to the browser, so you can tell which one sent
+       what. It never leaves the encrypted payload.</p>
+    <input type="text" id="device-name" maxlength="32" autocomplete="off"
+           placeholder="This computer" aria-label="Name for this device">
+    <label class="check"><input type="checkbox" id="chk-auto">
+      <span>Check for new text automatically</span></label>
+    <p class="note" id="auto-note"></p>
+    <div class="row end"><button class="primary" id="btn-settings-back">Done</button></div>
+  </div>
 </div>
 
 </main>

@@ -33,9 +33,10 @@ export async function loadDevice() {
 
 // Решение «писать или нет» принимает вызывающий: сюда приходит уже готовая запись.
 // Ошибку не глотаем — тому, кто вызвал, есть что сказать пользователю.
-export async function saveDevice({ roomKey, encKey, seqs, name }) {
+export async function saveDevice({ roomKey, encKey, seqs, deviceName, autoRefresh }) {
   const db = await openDb();
-  await tx(db, 'readwrite', (s) => s.put({ roomKey, encKey, seqs, name }, DB_KEY));
+  await tx(db, 'readwrite',
+    (s) => s.put({ roomKey, encKey, seqs, deviceName, autoRefresh }, DB_KEY));
 }
 
 export async function wipeDevice() {

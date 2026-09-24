@@ -18,9 +18,11 @@ const state = {
   // remote is the text the server holds; files is the manifest from slot 0. File bytes
   // are never held here: they are fetched when someone asks for them.
   remote: '', ts: 0, files: [], from: '',
-  // name — это моя метка для собеседника («Вася»), она же заголовок вкладки. Ни в одну
-  // запись она не уходит: для той стороны она смысла не имеет.
+  // name — моя метка для собеседника («Вася»), она же заголовок вкладки. Своя у каждой
+  // вкладки и никуда не отправляется: для той стороны она смысла не имеет.
   name: '',
+  // Настройки устройства: одни на все вкладки, живут в записи рядом с ключами.
+  deviceName: '', autoRefresh: false,
 };
 
 // То, что видит api.js: ключи, счётчики и способ их сохранить — без DOM и без остального
@@ -216,6 +218,8 @@ async function activate(code, persist) {
   }
   show('main');
   load('', [], '');
+  renderSettings();
+  schedulePolling();
   await refresh(true);
 }
 
@@ -226,10 +230,11 @@ async function resume() {
     ? saved.roomKey : new Uint8Array(saved.roomKey);
   state.encKey = saved.encKey;
   state.seqs = (saved.seqs && typeof saved.seqs === 'object') ? saved.seqs : {};
-  applyName(typeof saved.name === 'string' ? saved.name : '');
+  applySettings(saved);
   state.persist = true;
   show('main');
   load('', [], '');
+  schedulePolling();
   await refresh(true);
   return true;
 }
@@ -275,37 +280,166 @@ function renderQr(host, text) {
 
 // Заголовок, каким вкладка называется до того, как её переименовали: он же плейсхолдер.
 const DEFAULT_TITLE = document.title;
-let nameTimer = null;
+
+// Имя вкладки — своё у каждой вкладки, поэтому sessionStorage, а не запись устройства:
+// та общая для всех вкладок домена, и две вкладки затирали бы имя друг у друга.
+const TAB_NAME_KEY = 'tab-name';
+const tabStore = {
+  get(key) { try { return sessionStorage.getItem(key); } catch (err) { return null; } },
+  set(key, value) { try { sessionStorage.setItem(key, value); } catch (err) { /* приватный режим */ } },
+};
 
 function applyName(name) {
   state.name = name;
-  $('tab-name').value = name;
-  $('tab-name').placeholder = DEFAULT_TITLE;
+  const field = $('tab-name');
+  field.value = name;
+  field.placeholder = DEFAULT_TITLE;
+  // Ширина по содержимому: растянутое на всю ширину поле выглядит как форма, а не как
+  // заголовок. size работает везде, в отличие от field-sizing:content.
+  field.size = Math.max(6, Math.min(40, (name || DEFAULT_TITLE).length + 1));
   document.title = name || DEFAULT_TITLE;
 }
 
-applyName('');   // плейсхолдер на месте и до того, как устройство спарено
+applyName(tabStore.get(TAB_NAME_KEY) || '');
 
 $('tab-name').addEventListener('input', () => {
-  state.name = $('tab-name').value;
-  document.title = state.name.trim() || DEFAULT_TITLE;
-  clearTimeout(nameTimer);
-  nameTimer = setTimeout(() => saveDevice(), 400);
+  applyName($('tab-name').value);
+  tabStore.set(TAB_NAME_KEY, state.name.trim());
 });
 
-// Запись на диск идёт через saveDevice, то есть только при «запомнить это устройство»:
-// на чужой машине метка остаётся в памяти вкладки и следа не оставляет.
 for (const event of ['blur', 'change']) {
   $('tab-name').addEventListener(event, () => {
-    clearTimeout(nameTimer);
     applyName($('tab-name').value.trim());
-    saveDevice();
+    tabStore.set(TAB_NAME_KEY, state.name);
   });
 }
 
 $('tab-name').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') $('tab-name').blur();
 });
+
+// --- настройки устройства ----------------------------------------------------
+// Одни на все вкладки домена, поэтому лежат в записи устройства, а не в sessionStorage,
+// и расходятся между открытыми вкладками через BroadcastChannel.
+
+const channel = ('BroadcastChannel' in globalThis)
+  ? new BroadcastChannel('web-clipboard') : null;
+if (channel) {
+  channel.onmessage = (event) => {
+    if (event.data && event.data.kind === 'settings') applySettings(event.data.settings);
+  };
+}
+
+function applySettings(saved) {
+  state.deviceName = typeof saved.deviceName === 'string' ? saved.deviceName : '';
+  state.autoRefresh = saved.autoRefresh === true;
+  renderSettings();
+  schedulePolling();
+}
+
+function renderSettings() {
+  $('device-name').value = state.deviceName;
+  $('chk-auto').checked = state.autoRefresh && state.persist;
+  // На рабочей ВМ устройство не запоминается, значит настройку негде хранить и опрос не
+  // запускается. Это свойство кода, а не дисциплина пользователя.
+  $('chk-auto').disabled = !state.persist;
+  $('auto-note').textContent = state.persist
+    ? 'Checks every ' + (POLL_MS / 1000) + ' seconds while this tab is in front. '
+      + 'It never overwrites text you are still typing.'
+    : 'Not available: this device is not being remembered, so nothing about it is '
+      + 'stored here — which is what you want on a machine you do not own.';
+}
+
+function saveSettings() {
+  renderSettings();
+  schedulePolling();
+  if (channel) {
+    channel.postMessage({
+      kind: 'settings',
+      settings: { deviceName: state.deviceName, autoRefresh: state.autoRefresh },
+    });
+  }
+  return saveDevice();
+}
+
+$('btn-settings').addEventListener('click', () => {
+  renderSettings();
+  show('settings');
+});
+
+$('btn-settings-back').addEventListener('click', () => show('main'));
+
+$('device-name').addEventListener('change', () => {
+  state.deviceName = $('device-name').value.trim();
+  saveSettings();
+});
+
+$('chk-auto').addEventListener('change', () => {
+  state.autoRefresh = $('chk-auto').checked;
+  saveSettings();
+});
+
+// --- размер карточки ---------------------------------------------------------
+// Родной уголок textarea выключен: тянем за угол самой карточки, и поле растёт вместе с
+// ней. Высота своя у каждой вкладки, поэтому sessionStorage.
+
+const CARD_HEIGHT_KEY = 'card-height';
+const MIN_CARD_HEIGHT = 240;
+const card = () => $('grip').parentElement;
+
+function applyCardHeight(px) {
+  const el = card();
+  if (px) {
+    el.style.flex = 'none';
+    el.style.height = px + 'px';
+  } else {
+    el.style.flex = '';
+    el.style.height = '';
+  }
+}
+
+applyCardHeight(Number(tabStore.get(CARD_HEIGHT_KEY)) || 0);
+
+$('grip').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  // Захват курсора, иначе перетаскивание рвётся, стоит выйти за пределы хвата.
+  $('grip').setPointerCapture(event.pointerId);
+  const startY = event.clientY;
+  const startHeight = card().getBoundingClientRect().height;
+
+  const onMove = (move) => {
+    const height = Math.max(MIN_CARD_HEIGHT, Math.round(startHeight + move.clientY - startY));
+    applyCardHeight(height);
+  };
+  const onUp = () => {
+    $('grip').removeEventListener('pointermove', onMove);
+    $('grip').removeEventListener('pointerup', onUp);
+    tabStore.set(CARD_HEIGHT_KEY, String(Math.round(card().getBoundingClientRect().height)));
+  };
+  $('grip').addEventListener('pointermove', onMove);
+  $('grip').addEventListener('pointerup', onUp);
+});
+
+// Двойной клик возвращает карточку к «во весь экран».
+$('grip').addEventListener('dblclick', () => {
+  applyCardHeight(0);
+  tabStore.set(CARD_HEIGHT_KEY, '');
+});
+
+// --- автообновление ----------------------------------------------------------
+
+const POLL_MS = 10_000;
+let pollTimer = null;
+
+// Опрос идёт только при запомненном устройстве и только когда вкладка на виду: десяток
+// фоновых вкладок иначе съел бы лимит комнаты (120 запросов на 10 минут).
+function schedulePolling() {
+  clearInterval(pollTimer);
+  pollTimer = null;
+  if (!state.autoRefresh || !state.persist || !state.roomKey) return;
+  if (document.visibilityState !== 'visible') return;
+  pollTimer = setInterval(() => refresh(true), POLL_MS);
+}
 
 function showCreated(code, isRotation) {
   pendingCode = code;
@@ -499,6 +633,7 @@ $('btn-unlink').addEventListener('click', async () => {
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && state.roomKey) refresh(true);
+  schedulePolling();
 });
 window.addEventListener('focus', () => { if (state.roomKey) refresh(true); });
 

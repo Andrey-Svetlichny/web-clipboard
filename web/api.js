@@ -65,9 +65,20 @@ export async function send(session, slot, plaintext) {
 
 // Slot 0 carries the text and the manifest together, so a peer learns about an
 // attachment in the same fetch that brings it the text.
+// «Мой ноутбук · Chrome on Windows», или только одна половина, если второй нет. Длина
+// ограничена здесь же: строка попадает в заголовок карточки на той стороне.
+export function origin(deviceName, agent) {
+  return [deviceName, agent]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter(Boolean)
+    .join(' · ')
+    .slice(0, FROM_MAX);
+}
+
 export const sendText = (session, text, files, items) =>
   send(session, TEXT_SLOT, ENC.encode(JSON.stringify({
-    v: 1, ts: Math.floor(Date.now() / 1000), items, files, from: describeAgent(),
+    v: 1, ts: Math.floor(Date.now() / 1000), items, files,
+    from: origin(session.deviceName, describeAgent()),
   })));
 
 export async function fetchRecord(session, slot) {
@@ -115,8 +126,9 @@ export async function fetchText(session) {
 
 // Строка приходит от другого устройства, попадает в разметку и может быть любой:
 // режем длину и управляющие символы, чтобы она не растянула строку и не съехала.
+export const FROM_MAX = 64;
 const validFrom = (from) => (typeof from === 'string'
-  ? from.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 48) : '');
+  ? from.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, FROM_MAX) : '');
 
 // Whatever a peer put in the manifest, only entries this client can act on survive:
 // a usable slot, a name to show, and a size to display.

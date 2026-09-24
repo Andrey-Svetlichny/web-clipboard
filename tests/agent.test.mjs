@@ -47,3 +47,21 @@ test('на неизвестном агенте возвращается пуст
   // Платформа без узнаваемого браузера всё же полезнее пустоты.
   assert.equal(describeAgent({ userAgent: 'SomeBot (Windows NT 10.0)' }), 'Windows');
 });
+
+test('origin склеивает имя устройства с браузером', async () => {
+  const { origin, FROM_MAX } = await import('../web/api.js');
+
+  assert.equal(origin('Мой ноутбук', 'Chrome on Windows'), 'Мой ноутбук · Chrome on Windows');
+  // Любой половины может не быть: разделитель тогда не появляется.
+  assert.equal(origin('', 'Safari on iPhone'), 'Safari on iPhone');
+  assert.equal(origin('Ноутбук', ''), 'Ноутбук');
+  assert.equal(origin('', ''), '');
+  assert.equal(origin('  Ноутбук  ', ' Firefox on Linux '), 'Ноутбук · Firefox on Linux');
+  // Не строки приходят от чужого кода и не должны ломать склейку.
+  assert.equal(origin(undefined, 'Chrome on Android'), 'Chrome on Android');
+  assert.equal(origin(null, null), '');
+
+  // Строка едет в заголовок карточки на той стороне, поэтому длина ограничена здесь.
+  const long = origin('Д'.repeat(60), 'Chrome on Windows');
+  assert.equal(long.length, FROM_MAX);
+});
