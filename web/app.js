@@ -292,15 +292,33 @@ const tabStore = {
 function applyName(name) {
   state.name = name;
   const field = $('tab-name');
+  const display = $('tab-name-display');
   field.value = name;
   field.placeholder = DEFAULT_TITLE;
   // Ширина по содержимому: растянутое на всю ширину поле выглядит как форма, а не как
   // заголовок. size работает везде, в отличие от field-sizing:content.
   field.size = Math.max(6, Math.min(40, (name || DEFAULT_TITLE).length + 1));
+  display.textContent = name || DEFAULT_TITLE;
+  display.classList.toggle('placeholder', !name);
   document.title = name || DEFAULT_TITLE;
 }
 
 applyName(tabStore.get(TAB_NAME_KEY) || '');
+
+// Текст по умолчанию, редактирование — по клику; переключение через hidden, как экраны.
+function enterEdit() {
+  $('tab-name-display').hidden = true;
+  const field = $('tab-name');
+  field.hidden = false;
+  field.focus();
+  field.select();
+}
+function exitEdit() {
+  $('tab-name').hidden = true;
+  $('tab-name-display').hidden = false;
+}
+
+$('tab-name-display').addEventListener('click', enterEdit);
 
 $('tab-name').addEventListener('input', () => {
   applyName($('tab-name').value);
@@ -311,6 +329,7 @@ for (const event of ['blur', 'change']) {
   $('tab-name').addEventListener(event, () => {
     applyName($('tab-name').value.trim());
     tabStore.set(TAB_NAME_KEY, state.name);
+    exitEdit();
   });
 }
 
