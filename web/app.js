@@ -19,6 +19,10 @@ const state = {
   // remote is the text the server holds; files is the manifest from slot 0. File bytes
   // are never held here: they are fetched when someone asks for them.
   remote: '', ts: 0, files: [], from: '',
+  // ours is my own version — the Old tab, and what Send sends. An update only ever
+  // replaces remote (the New tab), so however many arrive, the diff is against ours
+  // rather than against the previous one received. Editing New makes it ours.
+  ours: '',
   // name — моя метка для собеседника («Вася»), она же заголовок вкладки. Своя у каждой
   // вкладки и никуда не отправляется: для той стороны она смысла не имеет.
   name: '',
@@ -89,9 +93,15 @@ function copyNow(text) {
   return legacyCopy(text);
 }
 
-// The box is the room's text and the draft at once, so "changed" is simply the box
-// differing from what the server is known to hold. Nothing else needs tracking.
-const dirty = () => $('box').value !== state.remote;
+// Which version the card shows: 'old' (ours), 'diff' or 'new' (remote). One textarea
+// serves both editable versions; switching tabs swaps its value.
+let view = 'old';
+
+const differs = () => state.ours !== state.remote;
+
+// Send is off on an untouched New tab: it would publish ours over a version the user is
+// looking at but has not taken.
+const dirty = () => view !== 'new' && differs();
 
 function syncSend() {
   $('btn-send').disabled = !dirty();
@@ -102,7 +112,7 @@ function renderBox() {
   $('from').textContent = shown && state.from ? 'from ' + state.from : '';
   $('age').textContent = shown && state.ts ? ago(state.ts) : '';
   renderFiles();
-  syncSend();
+  renderView();
 }
 
 const KB = 1024;
@@ -147,10 +157,11 @@ function renderFiles() {
 const textOf = (items) => items.map((item) => item.text).join('\n');
 
 function load(text, files, from) {
-  $('box').value = text;
+  state.ours = text;
   state.remote = text;
   state.files = files;
   state.from = from || '';
+  view = 'old';
   renderBox();
 }
 
@@ -167,24 +178,44 @@ function renderDiffLines(ops) {
   });
 }
 
-// Shown over the box rather than merged into it: a plain textarea cannot color part of
-// its own value, so the highlighted view and the editable box are two elements, toggled
-// like the tab-name display/input pair above.
-function showDiff(oldText, newText) {
-  if (oldText.length + newText.length > MAX_DIFF_CHARS) return;
-  $('diff-lines').replaceChildren(...renderDiffLines(diffLines(oldText, newText)));
-  $('box').hidden = true;
-  $('diff-view').hidden = false;
-  $('btn-diff-close').focus();
+const VIEWS = ['old', 'diff', 'new'];
+
+// The diff is shown instead of the box rather than merged into it: a plain textarea
+// cannot color part of its own value, so the highlighted view and the editable box are
+// two elements, toggled like the tab-name display/input pair above.
+function renderView() {
+  const tooBig = state.ours.length + state.remote.length > MAX_DIFF_CHARS;
+  // The switcher stays put; with nothing to compare only Old makes sense.
+  if (!differs() || (view === 'diff' && tooBig)) view = 'old';
+  for (const name of VIEWS) $('view-' + name).setAttribute('aria-pressed', String(view === name));
+  $('view-diff').disabled = !differs() || tooBig;
+  $('view-new').disabled = !differs();
+
+  if (view === 'diff') {
+    $('diff-lines').replaceChildren(...renderDiffLines(diffLines(state.ours, state.remote)));
+  } else {
+    const text = view === 'new' ? state.remote : state.ours;
+    // Only when it actually changes, or the caret would jump to the end mid-typing.
+    if ($('box').value !== text) $('box').value = text;
+  }
+  $('box').hidden = view === 'diff';
+  $('diff-view').hidden = view !== 'diff';
+  syncSend();
 }
 
-function hideDiff() {
-  $('diff-view').hidden = true;
-  $('box').hidden = false;
-  $('box').focus();
+function setView(name) {
+  view = name;
+  renderView();
 }
 
-$('btn-diff-close').addEventListener('click', hideDiff);
+for (const name of VIEWS) $('view-' + name).addEventListener('click', () => setView(name));
+
+$('box').addEventListener('input', () => {
+  state.ours = $('box').value;
+  // The moment New is edited it becomes ours: same textarea, same caret, other tab lit.
+  if (view === 'new') view = 'old';
+  renderView();
+});
 
 let lastRefresh = 0;
 
@@ -207,35 +238,32 @@ async function refresh(quiet) {
       setStatus('send-status', 'cannot decrypt — different code?', true);
       return;
     }
+    if (!quiet) setStatus('send-status', '');
+    // Nothing the server says ever touches ours: it lands in remote, and the user picks
+    // between the two with the switcher.
     if (result.kind === 'empty') {
       state.ts = 0;
-      if (!dirty()) load('', [], '');
-      else { state.remote = ''; state.files = []; state.from = ''; renderBox(); }
+      state.remote = '';
+      state.files = [];
+      state.from = '';
+      renderBox();
       return;
     }
     const text = textOf(result.items);
     const previous = state.remote;
-    // Nothing to diff against on the very first record this tab ever loads — state.ts
-    // is only 0 before that happens.
-    const hadPrevious = state.ts !== 0;
-    // An edited box is never overwritten by a background refresh — not even with the
-    // same text it already holds, which is what switching tabs used to do. Only the
-    // Refresh button, an explicit act, replaces what you typed. Attachments are not a
-    // draft, so they land either way.
-    if (quiet && dirty()) {
-      state.files = result.files;
-      state.from = result.from;
-      renderBox();
-      if (text !== previous) {
-        setStatus('send-status', 'newer text — press Refresh');
-        if (hadPrevious) showDiff(previous, text);
-      }
+    state.ts = result.ts;
+    // With no version of our own there is nothing to protect or compare: just take it.
+    // That covers the first record this tab loads.
+    if (!state.ours && !state.remote) {
+      load(text, result.files, result.from);
       return;
     }
-    state.ts = result.ts;
-    load(text, result.files, result.from);
-    if (!quiet) setStatus('send-status', '');
-    if (hadPrevious && text !== previous) showDiff(previous, text);
+    state.remote = text;
+    state.files = result.files;
+    state.from = result.from;
+    // A newer version opens straight in the diff, unless the user is typing in the box.
+    if (text !== previous && differs() && document.activeElement !== $('box')) view = 'diff';
+    renderBox();
   } catch (err) {
     setStatus('send-status', reason(err), true);
   }
@@ -248,6 +276,7 @@ async function activate(code, persist) {
   state.persist = persist;
   state.seqs = {};
   state.remote = '';
+  state.ours = '';
   state.files = [];
   if (persist) {
     await saveDevice();
@@ -562,15 +591,35 @@ $('code-input').addEventListener('keydown', (event) => {
 });
 
 $('btn-refresh').addEventListener('click', () => refresh(false));
-$('box').addEventListener('input', syncSend);
 
+// --- меню ⋮ ------------------------------------------------------------------
+
+function setMenu(open) {
+  $('menu').hidden = !open;
+  $('btn-menu').setAttribute('aria-expanded', String(open));
+}
+
+$('btn-menu').addEventListener('click', () => setMenu($('menu').hidden));
+// Пункты делают своё своими обработчиками; сюда клик доходит уже после них.
+$('menu').addEventListener('click', () => setMenu(false));
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.menu-host')) setMenu(false);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('menu').hidden) {
+    setMenu(false);
+    $('btn-menu').focus();
+  }
+});
+
+// Always ours, whichever tab is showing: Send is disabled on an untouched New anyway.
 $('btn-send').addEventListener('click', async () => {
-  const items = parseItems($('box').value);
+  const items = parseItems(state.ours);
   $('btn-send').disabled = true;
   setStatus('send-status', '');
   try {
     if (items.length || state.files.length) {
-      await sendText(state, $('box').value, state.files, parseItems($('box').value));
+      await sendText(state, state.ours, state.files, items);
       // The text actually sent, so a trailing newline cannot leave the box dirty
       // against a value the server never saw. The button greying out is the receipt;
       // there is nothing to announce.
