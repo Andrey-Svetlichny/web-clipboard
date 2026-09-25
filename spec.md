@@ -97,7 +97,7 @@ slot cannot be lifted into another slot of the same room at the same seq and sti
 UTF-8 JSON, serialised with no insignificant whitespace:
 
 ```json
-{"v":1,"ts":1757808000,"items":[{"label":"","text":".."}],"files":[{"slot":1,"name":"passport.pdf","type":"application/pdf","size":123456}],"from":"My laptop · Chrome on Windows"}
+{"v":1,"ts":1757808000,"items":[{"label":"","text":".."}],"files":[{"slot":1,"name":"passport.pdf","type":"application/pdf","size":123456}],"from":"My laptop · Chrome/Windows","dev":"q3v9…"}
 ```
 
 - `ts` — unix **seconds** at encryption time, authenticated by the AEAD.
@@ -107,8 +107,10 @@ UTF-8 JSON, serialised with no insignificant whitespace:
 - `files` — the attachment manifest: one `{slot, name, type, size}` entry per occupied
   file slot, `slot` in `1..MAX_SLOT`, `name` non-empty, `size` the plaintext byte count.
   `name` and `type` travel only inside this ciphertext; the server never sees them.
-- `from` — optional device label, e.g. `"My laptop · Chrome on Windows"`, at most 64
+- `from` — optional device label, e.g. `"My laptop · Chrome/Windows"`, at most 64
   characters.
+- `dev` — optional opaque device id, random per device and kept with its keys. The
+  client only compares it with its own to show its own records as "you".
 
 `ts` is the only replay defence a user can reason about, so the UI always renders the
 record's age from it.

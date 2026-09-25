@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="robots" content="noindex, nofollow">
 <title>Note</title>
 <link rel="manifest" href="/manifest.json">
@@ -16,13 +16,13 @@
 :root{
   --bg:#f7f7f5; --card:#fff; --ink:#15181d; --muted:#666f7a; --line:#dfe1e4;
   --accent:#2f6d4f; --accent-ink:#fff; --bad:#8c2f2f; --warn:#a15c07; --warn-ink:#fff;
-  --add-bg:#e3f3e9; --del-bg:#fbe9e9;
+  --add-bg:#e3f3e9; --del-bg:#fbe9e9; --seg-on:#e6e8eb;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#11151a; --card:#191e25; --ink:#e8eaed; --muted:#9aa4b0; --line:#2a313a;
     --accent:#4c9c74; --accent-ink:#08120c; --bad:#e08a8a; --warn:#e3a869; --warn-ink:#241506;
-    --add-bg:#173425; --del-bg:#3a1f1f;
+    --add-bg:#173425; --del-bg:#3a1f1f; --seg-on:#2c333d;
   }
 }
 *{box-sizing:border-box}
@@ -33,9 +33,10 @@ body{
   -webkit-text-size-adjust:100%;
 }
 /* dvh, а не vh: на телефоне vh считается от экрана без учёта сворачивающейся панели
-   браузера, и низ страницы уезжает под неё. */
+   браузера, и низ страницы уезжает под неё. --app-h — высота над клавиатурой, её
+   выставляет app.js там, где dvh под клавиатурой не сжимается (iOS). */
 main{
-  max-width:640px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;
+  max-width:640px; margin:0 auto; min-height:var(--app-h, 100dvh); display:flex; flex-direction:column;
   padding:20px 16px 20px; padding-bottom:calc(20px + env(safe-area-inset-bottom));
 }
 /* min-height:0 обязателен всюду по цепочке, иначе textarea не даст контейнеру сжаться. */
@@ -50,9 +51,14 @@ p{margin:0 0 12px; color:var(--muted); font-size:14px}
    рамка вокруг рамки. На телефоне убираем, поля и кнопки сами себя очерчивают. */
 @media (max-width:640px){
   .card{background:none; border:none; padding:0}
+  .screen[data-screen="main"] .card{margin-bottom:0}
+  /* Без карточки заливка кнопок светится на фоне страницы: остаётся только обводка. */
+  .card-head button.icon{background:none}
 }
 .card-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px}
-.card-head h2{margin:0; min-width:0; flex:1 1 auto}
+/* Заголовок и строка «кто · когда» — одна колонка высотой с круглые кнопки справа. */
+.head-text{flex:1 1 auto; min-width:0; display:flex; flex-direction:column}
+.card-head h2{margin:0; line-height:24px}
 /* Тег в селекторе обязателен: правило textarea,input[type=text] специфичнее простого
    класса и иначе вернуло бы полю рамку и фон.
    Ширина — по содержимому через атрибут size: растянутое на всю ширину поле подсвечивалось
@@ -86,8 +92,9 @@ input.tab-name:focus{background:var(--bg); outline:2px solid var(--accent); outl
   }
   .grip:hover{filter:brightness(1.6)}
 }
-.meta{font-size:13px; color:var(--muted); margin:0 0 10px; min-height:0}
-.meta span:not(:empty)~span:not(:empty)::before{content:'· '}
+.meta{font-size:13px; line-height:18px; color:var(--muted); margin:0;
+       white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.meta span:not(:empty)~span:not(:empty)::before{content:' – '}
 .meta #send-status.bad{color:var(--bad)}
 textarea,input[type=text],.diff-view{
   width:100%; font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -126,12 +133,15 @@ button.link{background:none; border:none; color:var(--muted); text-decoration:un
 button.link:hover{color:var(--ink)}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .row.end{justify-content:flex-end}
+.row.center{justify-content:center}
+.row.spaced{margin-top:24px}
 .grow{flex:1 1 auto}
-/* Old / Diff / New: одна кнопка-пилюля из трёх сегментов, активный — цветом акцента. */
+/* Old / Diff / New: одна кнопка-пилюля из трёх сегментов. Активный — серым: акцент
+   остаётся только у Send. */
 .seg{display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; flex:none}
 .seg button{border:none; border-radius:0; padding:0 14px; font-size:14px; background:var(--card)}
 .seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
+.seg button[aria-pressed="true"]{background:var(--seg-on); color:var(--ink); font-weight:600}
 .seg button:disabled{opacity:.45; cursor:default}
 .menu-host{position:relative; flex:none}
 .menu{
@@ -150,8 +160,8 @@ button.link:hover{color:var(--ink)}
     margin:0 auto 14px; display:none}
 .qr svg{display:block; width:100%; height:auto}
 .code{
-  font:600 21px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  letter-spacing:.09em; word-break:break-all; margin:4px 0 12px;
+  font:600 18px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.05em; white-space:nowrap; text-align:center; margin:4px 0 12px;
 }
 .note{font-size:13px; color:var(--muted); margin:10px 0 0}
 .status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
@@ -182,9 +192,8 @@ button.link:hover{color:var(--ink)}
 <div class="screen" data-screen="created" hidden>
   <div class="card">
     <div class="qr" id="qr"></div>
-    <h2>Your code</h2>
     <div class="code" id="new-code"></div>
-    <div class="row">
+    <div class="row center">
       <button id="btn-copy-code">Copy code</button>
       <button id="btn-copy-link">Copy link</button>
     </div>
@@ -192,7 +201,7 @@ button.link:hover{color:var(--ink)}
     <p class="note">On the work machine, <strong>type this code instead of opening a
        link</strong> — links land in browser history and managed-browser reporting,
        fragment and all.</p>
-    <div class="row end"><button class="warn" id="btn-created-go">Continue</button></div>
+    <div class="row end spaced"><button class="warn" id="btn-created-go">Continue</button></div>
   </div>
   <div class="status" id="created-status"></div>
 </div>
@@ -216,10 +225,13 @@ button.link:hover{color:var(--ink)}
 <div class="screen" data-screen="main" hidden>
   <div class="card">
     <div class="card-head">
-      <h2><button type="button" class="tab-name-display" id="tab-name-display"
-                  title="Rename this tab"></button><input class="tab-name" id="tab-name" type="text" maxlength="40"
-                 autocomplete="off" spellcheck="false"
-                 aria-label="Name for this tab" title="Rename this tab" hidden></h2>
+      <div class="head-text">
+        <h2><button type="button" class="tab-name-display" id="tab-name-display"
+                    title="Rename this tab"></button><input class="tab-name" id="tab-name" type="text" maxlength="40"
+                   autocomplete="off" spellcheck="false"
+                   aria-label="Name for this tab" title="Rename this tab" hidden></h2>
+        <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
+      </div>
       <button class="icon" id="btn-refresh" aria-label="Refresh" title="Refresh">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
@@ -239,7 +251,6 @@ button.link:hover{color:var(--ink)}
         </div>
       </div>
     </div>
-    <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
     <textarea id="box" placeholder="Nothing here yet. Type something and press Send."
               autocomplete="off" spellcheck="false"></textarea>
     <div class="diff-view" id="diff-view" hidden>
@@ -274,7 +285,7 @@ button.link:hover{color:var(--ink)}
 
 <div class="screen" data-screen="settings" hidden>
   <div class="card">
-    <h2>This device</h2>
+    <h2>Device name</h2>
     <p>Shown to your other devices next to the browser, so you can tell which one sent
        what. It never leaves the encrypted payload.</p>
     <input type="text" id="device-name" maxlength="32" autocomplete="off"

@@ -19,6 +19,8 @@ const state = {
   // remote is the text the server holds; files is the manifest from slot 0. File bytes
   // are never held here: they are fetched when someone asks for them.
   remote: '', ts: 0, files: [], from: '',
+  // mine: remote was written by this device (any tab of it) — shown as "you".
+  mine: false,
   // ours is my own version — the Old tab, and what Send sends. An update only ever
   // replaces remote (the New tab), so however many arrive, the diff is against ours
   // rather than against the previous one received. Editing New makes it ours.
@@ -28,6 +30,8 @@ const state = {
   name: '',
   // Настройки устройства: одни на все вкладки, живут в записи рядом с ключами.
   deviceName: '', autoRefresh: false,
+  // Random, never shown: marks our own records so they read "you" (see api.js sendText).
+  deviceId: '',
 };
 
 // То, что видит api.js: ключи, счётчики и способ их сохранить — без DOM и без остального
@@ -49,6 +53,27 @@ function show(name) {
   }
 }
 
+// Sub-screens get a history entry of their own: on a phone the back gesture otherwise
+// leaves the page — closing the app — instead of returning to the screen underneath.
+function setRoot(name) {
+  show(name);
+  history.replaceState({ screen: name }, '');
+}
+
+function goTo(name) {
+  history.pushState({ screen: name }, '');
+  show(name);
+}
+
+window.addEventListener('popstate', (event) => {
+  const target = event.state && event.state.screen;
+  if (!target) return;
+  // Once paired, the pairing screens left behind in the history make no sense.
+  const allowed = state.roomKey ? ['main', 'settings'] : ['pair', 'enter', 'created'];
+  if (allowed.includes(target)) show(target);
+  else setRoot(state.roomKey ? 'main' : 'pair');
+});
+
 function setStatus(id, message, bad) {
   const el = $(id);
   el.textContent = message || '';
@@ -62,7 +87,7 @@ function ago(ms) {
   const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
   if (seconds < 60) return 'just now';
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return minutes + (minutes === 1 ? ' minute ago' : ' minutes ago');
+  if (minutes < 60) return minutes + ' min ago';
   const hours = Math.round(minutes / 60);
   if (hours < 48) return hours + (hours === 1 ? ' hour ago' : ' hours ago');
   return Math.round(hours / 24) + ' days ago';
@@ -109,7 +134,7 @@ function syncSend() {
 
 function renderBox() {
   const shown = state.remote || state.files.length;
-  $('from').textContent = shown && state.from ? 'from ' + state.from : '';
+  $('from').textContent = shown ? (state.mine ? 'You' : state.from) : '';
   $('age').textContent = shown && state.ts ? ago(state.ts) : '';
   renderFiles();
   renderView();
@@ -156,11 +181,12 @@ function renderFiles() {
 // more than one item, and dropping the rest would silently lose text.
 const textOf = (items) => items.map((item) => item.text).join('\n');
 
-function load(text, files, from) {
+function load(text, files, from, mine = false) {
   state.ours = text;
   state.remote = text;
   state.files = files;
   state.from = from || '';
+  state.mine = mine;
   view = 'old';
   renderBox();
 }
@@ -246,6 +272,7 @@ async function refresh(quiet) {
       state.remote = '';
       state.files = [];
       state.from = '';
+      state.mine = false;
       renderBox();
       return;
     }
@@ -255,25 +282,31 @@ async function refresh(quiet) {
     // With no version of our own there is nothing to protect or compare: just take it.
     // That covers the first record this tab loads.
     if (!state.ours && !state.remote) {
-      load(text, result.files, result.from);
+      load(text, result.files, result.from, isMine(result));
       return;
     }
     state.remote = text;
     state.files = result.files;
     state.from = result.from;
-    // A newer version opens straight in the diff, unless the user is typing in the box.
-    if (text !== previous && differs() && document.activeElement !== $('box')) view = 'diff';
+    state.mine = isMine(result);
+    // A newer version opens straight in the diff, even mid-typing: otherwise nothing
+    // shows that it came. What was typed is already in ours.
+    if (text !== previous && differs()) view = 'diff';
     renderBox();
   } catch (err) {
     setStatus('send-status', reason(err), true);
   }
 }
 
+const isMine = (result) => !!state.deviceId && result.dev === state.deviceId;
+const newDeviceId = () => b64u(crypto.getRandomValues(new Uint8Array(16)));
+
 async function activate(code, persist) {
   const keys = await derive(code);
   state.roomKey = keys.roomKey;
   state.encKey = keys.encKey;
   state.persist = persist;
+  state.deviceId = newDeviceId();
   state.seqs = {};
   state.remote = '';
   state.ours = '';
@@ -284,7 +317,7 @@ async function activate(code, persist) {
       try { await navigator.storage.persist(); } catch (err) { /* best effort */ }
     }
   }
-  show('main');
+  setRoot('main');
   load('', [], '');
   renderSettings();
   schedulePolling();
@@ -300,7 +333,13 @@ async function resume() {
   state.seqs = (saved.seqs && typeof saved.seqs === 'object') ? saved.seqs : {};
   applySettings(saved);
   state.persist = true;
-  show('main');
+  state.deviceId = typeof saved.deviceId === 'string' && saved.deviceId ? saved.deviceId : '';
+  // Records saved before the id existed get one now, once.
+  if (!state.deviceId) {
+    state.deviceId = newDeviceId();
+    await saveDevice();
+  }
+  setRoot('main');
   load('', [], '');
   schedulePolling();
   await refresh(true);
@@ -431,8 +470,7 @@ function renderSettings() {
   // запускается. Это свойство кода, а не дисциплина пользователя.
   $('chk-auto').disabled = !state.persist;
   $('auto-note').textContent = state.persist
-    ? 'Checks every ' + (POLL_MS / 1000) + ' seconds while this tab is in front. '
-      + 'It never overwrites text you are still typing.'
+    ? 'Checks every ' + (POLL_MS / 1000) + ' seconds while this tab is in front.'
     : 'Not available: this device is not being remembered, so nothing about it is '
       + 'stored here — which is what you want on a machine you do not own.';
 }
@@ -451,10 +489,10 @@ function saveSettings() {
 
 $('btn-settings').addEventListener('click', () => {
   renderSettings();
-  show('settings');
+  goTo('settings');
 });
 
-$('btn-settings-back').addEventListener('click', () => show('main'));
+$('btn-settings-back').addEventListener('click', () => history.back());
 
 $('device-name').addEventListener('change', () => {
   state.deviceName = $('device-name').value.trim();
@@ -513,6 +551,21 @@ $('grip').addEventListener('dblclick', () => {
   tabStore.set(CARD_HEIGHT_KEY, '');
 });
 
+// --- клавиатура на телефоне ---------------------------------------------------
+// iOS не сжимает под клавиатурой ни dvh, ни саму страницу, а только видимую её часть:
+// подгоняем высоту main под неё, иначе кнопки уезжают под клавиатуру. На Android то же
+// делает interactive-widget=resizes-content в viewport, и эта высота просто совпадает.
+
+if (window.visualViewport) {
+  const fitViewport = () => {
+    document.documentElement.style.setProperty('--app-h', visualViewport.height + 'px');
+    // Фокус в поле прокручивает страницу вниз, хотя всё уже помещается.
+    window.scrollTo(0, 0);
+  };
+  visualViewport.addEventListener('resize', fitViewport);
+  fitViewport();
+}
+
 // --- автообновление ----------------------------------------------------------
 
 const POLL_MS = 10_000;
@@ -534,7 +587,7 @@ function showCreated(code, isRotation) {
   $('new-code').textContent = grouped(code);
   renderQr($('qr'), location.origin + '/#' + code);
   setStatus('created-status', '');
-  show('created');
+  goTo('created');
 }
 
 $('btn-create').addEventListener('click', async () => {
@@ -544,7 +597,7 @@ $('btn-create').addEventListener('click', async () => {
 $('btn-have').addEventListener('click', () => {
   setStatus('enter-status', '');
   $('code-input').value = '';
-  show('enter');
+  goTo('enter');
   $('code-input').focus();
 });
 
@@ -570,7 +623,7 @@ $('btn-created-go').addEventListener('click', async () => {
   }
 });
 
-$('btn-enter-back').addEventListener('click', () => show('pair'));
+$('btn-enter-back').addEventListener('click', () => history.back());
 
 $('btn-enter-go').addEventListener('click', async () => {
   const code = await normalize($('code-input').value);
@@ -624,7 +677,7 @@ $('btn-send').addEventListener('click', async () => {
       // against a value the server never saw. The button greying out is the receipt;
       // there is nothing to announce.
       state.ts = Date.now();
-      load(items.length ? items[0].text : '', state.files, describeAgent());
+      load(items.length ? items[0].text : '', state.files, describeAgent(), true);
     } else {
       // Nothing left to share at all: drop the room, attachments and seq floors with it.
       await api('/api/clear', { room: room() });
@@ -753,7 +806,7 @@ window.addEventListener('focus', () => { if (state.roomKey) refresh(true); });
       'HTTP rather than HTTPS.';
     $('btn-create').disabled = true;
     $('btn-have').disabled = true;
-    show('pair');
+    setRoot('pair');
     return;
   }
 
@@ -768,5 +821,5 @@ window.addEventListener('focus', () => { if (state.roomKey) refresh(true); });
   }
 
   if (await resume()) return;
-  show('pair');
+  setRoot('pair');
 })();

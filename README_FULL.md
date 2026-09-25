@@ -175,7 +175,7 @@ web/crypto.js        base64url, HKDF, AES-GCM — mirrored by tests/reference.mj
 web/code.js          pairing code: alphabet, check character, normalising what was typed
 web/store.js         device keys in IndexedDB
 web/qr.js            QR encoder, byte mode, level M, versions 1-6
-web/agent.js         «Chrome on Windows» from navigator
+web/agent.js         «Chrome/Windows» from navigator
 tests/reference.mjs  spec.md reimplemented against node:crypto, for cross-checking
 tests/make_vectors.mjs, tests/smoke.mjs
 ```

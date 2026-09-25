@@ -176,7 +176,7 @@ test('every element the script reaches for exists', (t) => withApp(t, async ({ b
   assert.ok(wanted.size > 0);
   for (const id of wanted) assert.ok(present.has(id), `missing element #${id}`);
 
-  const screens = new Set([...script.matchAll(/show\('([^']+)'\)/g)].map((m) => m[1]));
+  const screens = new Set([...script.matchAll(/(?:show|goTo|setRoot)\('([^']+)'\)/g)].map((m) => m[1]));
   const declared = new Set([...body.matchAll(/data-screen="([^"]+)"/g)].map((m) => m[1]));
   assert.ok(screens.size > 0);
   for (const name of screens) assert.ok(declared.has(name), `missing screen ${name}`);

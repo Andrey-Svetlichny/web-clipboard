@@ -1,4 +1,4 @@
-// Короткая строка о себе: «Chrome on Windows».
+// Короткая строка о себе: «Chrome/Windows».
 //
 // Устройство знает это о себе само, поэтому сервер в этом не участвует и ничего лишнего
 // в записи не оседает.
@@ -35,6 +35,6 @@ export function describeAgent(nav) {
   const ua = source.userAgent || '';
   if (!browser) browser = match(BROWSERS, ua);
   if (!platform) platform = match(PLATFORMS, ua);
-  if (browser && platform) return `${browser} on ${platform}`;
+  if (browser && platform) return `${browser}/${platform}`;
   return browser || platform || '';
 }

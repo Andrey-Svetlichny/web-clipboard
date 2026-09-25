@@ -65,7 +65,7 @@ export async function send(session, slot, plaintext) {
 
 // Slot 0 carries the text and the manifest together, so a peer learns about an
 // attachment in the same fetch that brings it the text.
-// «Мой ноутбук · Chrome on Windows», или только одна половина, если второй нет. Длина
+// «Мой ноутбук · Chrome/Windows», или только одна половина, если второй нет. Длина
 // ограничена здесь же: строка попадает в заголовок карточки на той стороне.
 export function origin(deviceName, agent) {
   return [deviceName, agent]
@@ -79,6 +79,9 @@ export const sendText = (session, text, files, items) =>
   send(session, TEXT_SLOT, ENC.encode(JSON.stringify({
     v: 1, ts: Math.floor(Date.now() / 1000), items, files,
     from: origin(session.deviceName, describeAgent()),
+    // Random per device, so a record can be recognised as our own even when another
+    // device has the same browser, platform and (empty) name.
+    dev: session.deviceId,
   })));
 
 export async function fetchRecord(session, slot) {
@@ -121,7 +124,7 @@ export async function fetchText(session) {
   const items = Array.isArray(payload && payload.items) ? payload.items.filter(
     (item) => item && typeof item.text === 'string') : [];
   return { kind: 'ok', items, files: validFiles(payload && payload.files),
-    from: validFrom(payload && payload.from), ts: (payload.ts || 0) * 1000 };
+    from: validFrom(payload && payload.from), dev: validFrom(payload && payload.dev), ts: (payload.ts || 0) * 1000 };
 }
 
 // Строка приходит от другого устройства, попадает в разметку и может быть любой:
