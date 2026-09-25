@@ -16,11 +16,13 @@
 :root{
   --bg:#f7f7f5; --card:#fff; --ink:#15181d; --muted:#666f7a; --line:#dfe1e4;
   --accent:#2f6d4f; --accent-ink:#fff; --bad:#8c2f2f; --warn:#a15c07; --warn-ink:#fff;
+  --add-bg:#e3f3e9; --del-bg:#fbe9e9;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#11151a; --card:#191e25; --ink:#e8eaed; --muted:#9aa4b0; --line:#2a313a;
     --accent:#4c9c74; --accent-ink:#08120c; --bad:#e08a8a; --warn:#e3a869; --warn-ink:#241506;
+    --add-bg:#173425; --del-bg:#3a1f1f;
   }
 }
 *{box-sizing:border-box}
@@ -87,7 +89,7 @@ input.tab-name:focus{background:var(--bg); outline:2px solid var(--accent); outl
 .meta{font-size:13px; color:var(--muted); margin:0 0 10px; min-height:0}
 .meta span:not(:empty)~span:not(:empty)::before{content:'· '}
 .meta #send-status.bad{color:var(--bad)}
-textarea,input[type=text]{
+textarea,input[type=text],.diff-view{
   width:100%; font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--ink); background:var(--bg); border:1px solid var(--line);
   border-radius:9px; padding:11px 12px; resize:vertical;
@@ -95,6 +97,15 @@ textarea,input[type=text]{
 textarea{min-height:180px; resize:vertical}
 /* Размер тянется за угол карточки, а не за собственный уголок поля. */
 #box{flex:1 1 auto; min-height:120px; resize:none}
+/* Показывается вместо #box, не поверх: обычная textarea не умеет красить свой текст
+   построчно, так что подсвеченный вид и редактируемое поле — два разных элемента,
+   переключаемые через hidden, как пара tab-name-display/tab-name выше. */
+.diff-view{flex:1 1 auto; min-height:120px; overflow-y:auto; resize:none}
+.diff-view .row{justify-content:space-between; margin-bottom:8px}
+.diff-view .note{margin:0}
+.diff-line{white-space:pre-wrap; word-break:break-all; padding:1px 6px; border-radius:4px}
+.diff-add{background:var(--add-bg); border-left:3px solid var(--accent)}
+.diff-del{background:var(--del-bg); border-left:3px solid var(--bad); text-decoration:line-through}
 textarea:focus,input[type=text]:focus{outline:2px solid var(--accent); outline-offset:-1px}
 button{
   font:inherit; font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
@@ -206,6 +217,13 @@ footer{display:flex; gap:4px; justify-content:center; margin-top:26px; flex-wrap
     <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
     <textarea id="box" placeholder="Nothing here yet. Type something and press Send."
               autocomplete="off" spellcheck="false"></textarea>
+    <div class="diff-view" id="diff-view" hidden>
+      <div class="row">
+        <span class="note">What changed since you last saw this</span>
+        <button class="link" id="btn-diff-close">Continue editing</button>
+      </div>
+      <div id="diff-lines"></div>
+    </div>
     <div id="files"></div>
     <div class="row">
       <input type="file" id="file-input" multiple hidden>

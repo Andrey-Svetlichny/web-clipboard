@@ -12,6 +12,7 @@ import {
 } from './api.js';
 import { describeAgent } from './agent.js';
 import { qrMatrix } from './qr.js';
+import { diffLines } from './diff.js';
 
 const state = {
   roomKey: null, encKey: null, seqs: {}, persist: true,
@@ -153,6 +154,38 @@ function load(text, files, from) {
   renderBox();
 }
 
+// Above this, an O(N·D) line diff risks a visible stall on a huge paste; the documented
+// use case is short secrets, so real use never gets near it.
+const MAX_DIFF_CHARS = 200_000;
+
+function renderDiffLines(ops) {
+  return ops.map((op) => {
+    const line = document.createElement('div');
+    line.className = op.type === 'same' ? 'diff-line' : 'diff-line diff-' + op.type;
+    line.textContent = op.text;
+    return line;
+  });
+}
+
+// Shown over the box rather than merged into it: a plain textarea cannot color part of
+// its own value, so the highlighted view and the editable box are two elements, toggled
+// like the tab-name display/input pair above.
+function showDiff(oldText, newText) {
+  if (oldText.length + newText.length > MAX_DIFF_CHARS) return;
+  $('diff-lines').replaceChildren(...renderDiffLines(diffLines(oldText, newText)));
+  $('box').hidden = true;
+  $('diff-view').hidden = false;
+  $('btn-diff-close').focus();
+}
+
+function hideDiff() {
+  $('diff-view').hidden = true;
+  $('box').hidden = false;
+  $('box').focus();
+}
+
+$('btn-diff-close').addEventListener('click', hideDiff);
+
 let lastRefresh = 0;
 
 async function refresh(quiet) {
@@ -181,6 +214,10 @@ async function refresh(quiet) {
       return;
     }
     const text = textOf(result.items);
+    const previous = state.remote;
+    // Nothing to diff against on the very first record this tab ever loads — state.ts
+    // is only 0 before that happens.
+    const hadPrevious = state.ts !== 0;
     // An edited box is never overwritten by a background refresh — not even with the
     // same text it already holds, which is what switching tabs used to do. Only the
     // Refresh button, an explicit act, replaces what you typed. Attachments are not a
@@ -189,14 +226,16 @@ async function refresh(quiet) {
       state.files = result.files;
       state.from = result.from;
       renderBox();
-      if (text !== state.remote) {
+      if (text !== previous) {
         setStatus('send-status', 'newer text — press Refresh');
+        if (hadPrevious) showDiff(previous, text);
       }
       return;
     }
     state.ts = result.ts;
     load(text, result.files, result.from);
     if (!quiet) setStatus('send-status', '');
+    if (hadPrevious && text !== previous) showDiff(previous, text);
   } catch (err) {
     setStatus('send-status', reason(err), true);
   }
