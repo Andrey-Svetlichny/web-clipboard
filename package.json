@@ -4,12 +4,17 @@
   "private": true,
   "type": "module",
   "description": "End-to-end encrypted clipboard relay",
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/index.mjs",
-    "dev": "CLIPBOARD_DB=./dev.db HOST=127.0.0.1 node --watch --watch-path=web --watch-path=server --disable-warning=ExperimentalWarning server/index.mjs",
+    "dev": "cross-env CLIPBOARD_DB=./dev.db HOST=127.0.0.1 node --watch --watch-path=web --watch-path=server --disable-warning=ExperimentalWarning server/index.mjs",
     "test": "node --disable-warning=ExperimentalWarning --test",
     "vectors": "node tests/make_vectors.mjs",
     "smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
   }
 }

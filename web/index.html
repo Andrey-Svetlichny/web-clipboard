@@ -52,10 +52,8 @@ p{margin:0 0 12px; color:var(--muted); font-size:14px}
 @media (max-width:640px){
   .card{background:none; border:none; padding:0}
   .screen[data-screen="main"] .card{margin-bottom:0}
-  /* Без карточки заливка кнопок светится на фоне страницы: остаётся только обводка. */
-  .card-head button.icon{background:none}
 }
-.card-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px}
+.card-head{display:flex; align-items:center; gap:8px; margin-bottom:10px}
 /* Заголовок и строка «кто · когда» — одна колонка высотой с круглые кнопки справа. */
 .head-text{flex:1 1 auto; min-width:0; display:flex; flex-direction:column}
 .card-head h2{margin:0; line-height:24px}
@@ -122,7 +120,7 @@ button.primary{background:var(--accent); color:var(--accent-ink); border-color:t
 button.primary:disabled{opacity:.45; cursor:default}
 button.warn{background:var(--warn); color:var(--warn-ink); border-color:transparent}
 button.warn:disabled{opacity:.45; cursor:default}
-button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center}
+button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center; border-color:transparent}
 button.icon svg{width:21px; height:21px; display:block; fill:currentColor}
 button.icon:disabled{opacity:.45; cursor:default}
 .file{display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); padding:7px 0}
@@ -132,6 +130,7 @@ button.icon:disabled{opacity:.45; cursor:default}
 button.link{background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 4px; min-height:0}
 button.link:hover{color:var(--ink)}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.card-head+.row{margin-bottom:12px}
 .row.end{justify-content:flex-end}
 .row.center{justify-content:center}
 .row.spaced{margin-top:24px}
@@ -232,9 +231,31 @@ button.link:hover{color:var(--ink)}
                    aria-label="Name for this tab" title="Rename this tab" hidden></h2>
         <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
       </div>
-      <button class="icon" id="btn-refresh" aria-label="Refresh" title="Refresh">
+    </div>
+    <div class="row">
+      <div class="seg" role="group" aria-label="Which version to show">
+        <button type="button" id="view-old" aria-pressed="true"
+                title="Your version — the one Save sends">Old</button>
+        <button type="button" id="view-diff" aria-pressed="false"
+                title="What the newer version changes in yours">Diff</button>
+        <button type="button" id="view-new" aria-pressed="false"
+                title="The version that came in — editing it makes it yours">New</button>
+      </div>
+      <span class="grow"></span>
+      <input type="file" id="file-input" multiple hidden>
+      <button class="icon" id="btn-attach" aria-label="Attach a file" title="Attach a file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+          <path d="M16.5 6v11.5a4.5 4.5 0 01-9 0V5a3 3 0 016 0v10.5a1.5 1.5 0 01-3 0V6H9v9.5a3 3 0 006 0V5a4.5 4.5 0 00-9 0v12.5a6 6 0 0012 0V6h-1.5z"/>
+        </svg>
+      </button>
+      <button class="icon" id="btn-pull" aria-label="Pull" title="Pull">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+      </button>
+      <button class="icon" id="btn-save" disabled aria-label="Save" title="Save">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
         </svg>
       </button>
       <div class="menu-host">
@@ -251,34 +272,12 @@ button.link:hover{color:var(--ink)}
         </div>
       </div>
     </div>
-    <textarea id="box" placeholder="Nothing here yet. Type something and press Send."
+    <textarea id="box" placeholder="Nothing here yet. Type something and press Save."
               autocomplete="off" spellcheck="false"></textarea>
     <div class="diff-view" id="diff-view" hidden>
       <div id="diff-lines"></div>
     </div>
     <div id="files"></div>
-    <div class="row">
-      <div class="seg" role="group" aria-label="Which version to show">
-        <button type="button" id="view-old" aria-pressed="true"
-                title="Your version — the one Send sends">Old</button>
-        <button type="button" id="view-diff" aria-pressed="false"
-                title="What the newer version changes in yours">Diff</button>
-        <button type="button" id="view-new" aria-pressed="false"
-                title="The version that came in — editing it makes it yours">New</button>
-      </div>
-      <span class="grow"></span>
-      <input type="file" id="file-input" multiple hidden>
-      <button class="icon" id="btn-attach" aria-label="Attach a file" title="Attach a file">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M16.5 6v11.5a4.5 4.5 0 01-9 0V5a3 3 0 016 0v10.5a1.5 1.5 0 01-3 0V6H9v9.5a3 3 0 006 0V5a4.5 4.5 0 00-9 0v12.5a6 6 0 0012 0V6h-1.5z"/>
-        </svg>
-      </button>
-      <button class="primary icon" id="btn-send" disabled aria-label="Send" title="Send">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-        </svg>
-      </button>
-    </div>
     <div class="grip" id="grip" title="Drag to resize, double-click to fill"></div>
   </div>
 </div>

@@ -129,7 +129,7 @@ const differs = () => state.ours !== state.remote;
 const dirty = () => view !== 'new' && differs();
 
 function syncSend() {
-  $('btn-send').disabled = !dirty();
+  $('btn-save').disabled = !dirty();
 }
 
 function renderBox() {
@@ -643,7 +643,7 @@ $('code-input').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') $('btn-enter-go').click();
 });
 
-$('btn-refresh').addEventListener('click', () => refresh(false));
+$('btn-pull').addEventListener('click', () => refresh(false));
 
 // --- меню ⋮ ------------------------------------------------------------------
 
@@ -665,10 +665,10 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-// Always ours, whichever tab is showing: Send is disabled on an untouched New anyway.
-$('btn-send').addEventListener('click', async () => {
+// Always ours, whichever tab is showing: Save is disabled on an untouched New anyway.
+$('btn-save').addEventListener('click', async () => {
   const items = parseItems(state.ours);
-  $('btn-send').disabled = true;
+  $('btn-save').disabled = true;
   setStatus('send-status', '');
   try {
     if (items.length || state.files.length) {
