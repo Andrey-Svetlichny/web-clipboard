@@ -118,7 +118,11 @@ button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; ali
 button.icon:focus-visible{background:var(--bg); outline:none}
 @media (hover:hover){button.icon:hover:not(:disabled){background:var(--bg)}}
 button.icon:active:not(:disabled){background:var(--line)}
-button.icon svg{width:21px; height:21px; display:block; fill:currentColor}
+button.icon svg{width:20px; height:20px; display:block}
+/* Один контурный набор (Lucide): одна толщина линии и один оптический размер у всех иконок. */
+button.icon svg,.seg button svg{
+  fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
+}
 button.icon:disabled{opacity:.45; cursor:default}
 .file{display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); padding:7px 0}
 .file .link{text-align:left; word-break:break-all; padding:6px 0}
@@ -135,7 +139,9 @@ button.link:hover{color:var(--ink)}
 .seg{display:inline-flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; flex:none}
 .seg button{border:none; border-radius:0; padding:0 clamp(8px, 3vw, 14px); font-size:14px; background:var(--card);
   display:inline-flex; align-items:center; gap:6px; min-height:42px}
-.seg button svg{width:16px; height:16px; display:block; fill:currentColor; flex:none}
+.seg button svg{width:16px; height:16px; display:block; flex:none}
+/* Local и Shared — прежние залитые иконки Material (Shared — контурный вариант облака). */
+.seg button svg.solid{fill:currentColor; stroke:none}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--seg-on); color:var(--ink); font-weight:600}
 .seg button:disabled{opacity:.45; cursor:default}
@@ -155,16 +161,17 @@ button.link:hover{color:var(--ink)}
 .menu button{border:none; background:none; text-align:left; border-radius:6px; padding:9px 12px; min-height:0}
 .menu button:hover,.menu button:focus-visible{background:var(--bg)}
 .menu button.danger{color:var(--bad)}
-.check{display:flex; gap:9px; align-items:flex-start; font-size:14px; color:var(--muted); margin:12px 0 0; cursor:pointer}
+.check{display:flex; gap:9px; align-items:flex-start; font-size:14px; color:var(--muted); margin:18px 0 0; cursor:pointer}
 .check input{margin:3px 0 0; flex:none; width:17px; height:17px; accent-color:var(--ink)}
 /* Black on white whatever the theme: a scanner needs the light quiet zone, and on a
    dark card a transparent background would invert it. */
 .qr{background:#fff; border-radius:9px; padding:10px; width:360px; max-width:100%;
-    margin:0 auto 14px; display:none}
+    margin:0 auto 6px; display:none}
 .qr svg{display:block; width:100%; height:auto}
 .code{
-  font:600 18px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  letter-spacing:.05em; white-space:nowrap; text-align:center; margin:4px 0 12px;
+  /* Крупнее, но в одну строку и на телефоне: 23 знака моноширинного ≈ 14em. */
+  font:700 clamp(18px, 5.4vw, 24px)/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.05em; white-space:nowrap; text-align:center; margin:0 0 14px;
 }
 .note{font-size:13px; color:var(--muted); margin:10px 0 0}
 .status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
@@ -230,40 +237,40 @@ button.link:hover{color:var(--ink)}
     <div class="row toolbar">
       <div class="seg" role="group" aria-label="Which version to show">
         <button type="button" id="view-old" aria-pressed="true" aria-label="Local"
-                title="Your version — the one Save sends"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                title="Your version — the one Save sends"><svg class="solid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
         </svg><span class="lbl">Local</span></button>
         <button type="button" id="view-diff" aria-pressed="false" aria-label="Diff"
                 title="What the newer version changes in yours"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M9.01 14H2v2h7.01v3L13 15l-3.99-4v3zm5.98-1v-3H22V8h-7.01V5L11 9l3.99 4z"/>
+          <path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>
         </svg><span class="lbl">Diff</span></button>
         <button type="button" id="view-new" aria-pressed="false" aria-label="Shared"
-                title="The version that came in — editing it makes it yours"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                title="The version that came in — editing it makes it yours"><svg class="solid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
         </svg><span class="lbl">Shared</span></button>
       </div>
       <span class="grow"></span>
       <input type="file" id="file-input" multiple hidden>
       <button class="icon" id="btn-attach" aria-label="Attach a file" title="Attach a file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M16.5 6v11.5a4.5 4.5 0 01-9 0V5a3 3 0 016 0v10.5a1.5 1.5 0 01-3 0V6H9v9.5a3 3 0 006 0V5a4.5 4.5 0 00-9 0v12.5a6 6 0 0012 0V6h-1.5z"/>
+          <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
         </svg>
       </button>
       <button class="icon" id="btn-pull" aria-label="Pull" title="Pull">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>
         </svg>
       </button>
       <button class="icon" id="btn-save" disabled aria-label="Save" title="Save">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>
         </svg>
       </button>
       <div class="menu-host">
         <button class="icon" id="btn-menu" aria-label="Menu" title="Menu"
                 aria-haspopup="menu" aria-expanded="false" aria-controls="menu">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z"/>
+            <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
           </svg>
         </button>
         <div class="menu" id="menu" role="menu" hidden>
