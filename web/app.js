@@ -208,7 +208,7 @@ const VIEWS = ['old', 'diff', 'new'];
 
 // The diff is shown instead of the box rather than merged into it: a plain textarea
 // cannot color part of its own value, so the highlighted view and the editable box are
-// two elements, toggled like the tab-name display/input pair above.
+// two elements, toggled with hidden like the screens.
 function renderView() {
   const tooBig = state.ours.length + state.remote.length > MAX_DIFF_CHARS;
   // The switcher stays put; with nothing to compare only Local makes sense.
@@ -396,49 +396,25 @@ const tabStore = {
   set(key, value) { try { sessionStorage.setItem(key, value); } catch (err) { /* приватный режим */ } },
 };
 
+// Поле — в настройках; имя видно только в заголовке вкладки браузера.
 function applyName(name) {
   state.name = name;
   const field = $('tab-name');
-  const display = $('tab-name-display');
-  field.value = name;
+  if (field.value !== name) field.value = name;
   field.placeholder = DEFAULT_TITLE;
-  // Ширина по содержимому: растянутое на всю ширину поле выглядит как форма, а не как
-  // заголовок. size работает везде, в отличие от field-sizing:content.
-  field.size = Math.max(6, Math.min(40, (name || DEFAULT_TITLE).length + 1));
-  display.textContent = name || DEFAULT_TITLE;
-  display.classList.toggle('placeholder', !name);
   document.title = name || DEFAULT_TITLE;
 }
 
 applyName(tabStore.get(TAB_NAME_KEY) || '');
 
-// Текст по умолчанию, редактирование — по клику; переключение через hidden, как экраны.
-function enterEdit() {
-  $('tab-name-display').hidden = true;
-  const field = $('tab-name');
-  field.hidden = false;
-  field.focus();
-  field.select();
-}
-function exitEdit() {
-  $('tab-name').hidden = true;
-  $('tab-name-display').hidden = false;
-}
-
-$('tab-name-display').addEventListener('click', enterEdit);
-
 $('tab-name').addEventListener('input', () => {
-  applyName($('tab-name').value);
-  tabStore.set(TAB_NAME_KEY, state.name.trim());
+  const name = $('tab-name').value.trim();
+  state.name = name;
+  document.title = name || DEFAULT_TITLE;
+  tabStore.set(TAB_NAME_KEY, name);
 });
 
-for (const event of ['blur', 'change']) {
-  $('tab-name').addEventListener(event, () => {
-    applyName($('tab-name').value.trim());
-    tabStore.set(TAB_NAME_KEY, state.name);
-    exitEdit();
-  });
-}
+$('tab-name').addEventListener('change', () => applyName($('tab-name').value.trim()));
 
 $('tab-name').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') $('tab-name').blur();
