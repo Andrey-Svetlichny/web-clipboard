@@ -21,9 +21,9 @@ const state = {
   remote: '', ts: 0, files: [], from: '',
   // mine: remote was written by this device (any tab of it) — shown as "you".
   mine: false,
-  // ours is my own version — the Old tab, and what Send sends. An update only ever
-  // replaces remote (the New tab), so however many arrive, the diff is against ours
-  // rather than against the previous one received. Editing New makes it ours.
+  // ours is my own version — the Local tab, and what Send sends. An update only ever
+  // replaces remote (the Shared tab), so however many arrive, the diff is against ours
+  // rather than against the previous one received. Editing Shared makes it ours.
   ours: '',
   // name — моя метка для собеседника («Вася»), она же заголовок вкладки. Своя у каждой
   // вкладки и никуда не отправляется: для той стороны она смысла не имеет.
@@ -124,7 +124,7 @@ let view = 'old';
 
 const differs = () => state.ours !== state.remote;
 
-// Send is off on an untouched New tab: it would publish ours over a version the user is
+// Send is off on an untouched Shared tab: it would publish ours over a version the user is
 // looking at but has not taken.
 const dirty = () => view !== 'new' && differs();
 
@@ -211,7 +211,7 @@ const VIEWS = ['old', 'diff', 'new'];
 // two elements, toggled like the tab-name display/input pair above.
 function renderView() {
   const tooBig = state.ours.length + state.remote.length > MAX_DIFF_CHARS;
-  // The switcher stays put; with nothing to compare only Old makes sense.
+  // The switcher stays put; with nothing to compare only Local makes sense.
   if (!differs() || (view === 'diff' && tooBig)) view = 'old';
   for (const name of VIEWS) $('view-' + name).setAttribute('aria-pressed', String(view === name));
   $('view-diff').disabled = !differs() || tooBig;
@@ -238,7 +238,7 @@ for (const name of VIEWS) $('view-' + name).addEventListener('click', () => setV
 
 $('box').addEventListener('input', () => {
   state.ours = $('box').value;
-  // The moment New is edited it becomes ours: same textarea, same caret, other tab lit.
+  // The moment Shared is edited it becomes ours: same textarea, same caret, other tab lit.
   if (view === 'new') view = 'old';
   renderView();
 });
@@ -665,7 +665,7 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-// Always ours, whichever tab is showing: Save is disabled on an untouched New anyway.
+// Always ours, whichever tab is showing: Save is disabled on an untouched Shared anyway.
 $('btn-save').addEventListener('click', async () => {
   const items = parseItems(state.ours);
   $('btn-save').disabled = true;

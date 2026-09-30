@@ -106,6 +106,12 @@ textarea{min-height:180px; resize:vertical}
    построчно, так что подсвеченный вид и редактируемое поле — два разных элемента,
    переключаемые через hidden, как пара tab-name-display/tab-name выше. */
 .diff-view{flex:1 1 auto; min-height:120px; overflow-y:auto; resize:none}
+/* На телефоне поле — во всю ширину экрана: выходит за боковые поля main (16px). */
+@media (max-width:640px){
+  #box,.diff-view{width:auto; margin:0 -16px; border-left:none; border-right:none; border-radius:0}
+  /* И до самого низа: нижнее поле main остаётся только под системную полоску iOS. */
+  main{padding-bottom:env(safe-area-inset-bottom)}
+}
 .diff-line{white-space:pre-wrap; word-break:break-all; padding:1px 6px; border-radius:4px}
 .diff-add{background:var(--add-bg); border-left:3px solid var(--accent)}
 .diff-del{background:var(--del-bg); border-left:3px solid var(--bad); text-decoration:line-through}
@@ -120,7 +126,10 @@ button.primary{background:var(--accent); color:var(--accent-ink); border-color:t
 button.primary:disabled{opacity:.45; cursor:default}
 button.warn{background:var(--warn); color:var(--warn-ink); border-color:transparent}
 button.warn:disabled{opacity:.45; cursor:default}
-button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center; border-color:transparent}
+button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center; border-color:transparent; background:transparent; -webkit-tap-highlight-color:transparent}
+button.icon:focus-visible{background:var(--bg); outline:none}
+@media (hover:hover){button.icon:hover:not(:disabled){background:var(--bg)}}
+button.icon:active:not(:disabled){background:var(--line)}
 button.icon svg{width:21px; height:21px; display:block; fill:currentColor}
 button.icon:disabled{opacity:.45; cursor:default}
 .file{display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); padding:7px 0}
@@ -135,13 +144,22 @@ button.link:hover{color:var(--ink)}
 .row.center{justify-content:center}
 .row.spaced{margin-top:24px}
 .grow{flex:1 1 auto}
-/* Old / Diff / New: одна кнопка-пилюля из трёх сегментов. Активный — серым: акцент
+/* Local / Diff / Shared: одна кнопка-пилюля из трёх сегментов. Активный — серым: акцент
    остаётся только у Send. */
-.seg{display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; flex:none}
-.seg button{border:none; border-radius:0; padding:0 14px; font-size:14px; background:var(--card)}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; flex:none}
+.seg button{border:none; border-radius:0; padding:0 clamp(8px, 3vw, 14px); font-size:14px; background:var(--card);
+  display:inline-flex; align-items:center; gap:6px; min-height:42px}
+.seg button svg{width:16px; height:16px; display:block; fill:currentColor; flex:none}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--seg-on); color:var(--ink); font-weight:600}
 .seg button:disabled{opacity:.45; cursor:default}
+/* Зазоры тулбара и сегментов сжимаются вместе с экраном; перенос на вторую строку запрещён. */
+.toolbar{gap:clamp(2px, 1.5vw, 8px); flex-wrap:nowrap; container-type:inline-size}
+/* Подписи прячем по ширине самого тулбара, а не экрана: с подписями ему нужно ~475px,
+   а карточка с рамкой и полями бывает уже при широком окне. Подпись остаётся в title и aria-label. */
+@container (max-width:450px){
+  .seg button .lbl{display:none}
+}
 .menu-host{position:relative; flex:none}
 .menu{
   position:absolute; right:0; top:calc(100% + 6px); z-index:10; min-width:200px;
@@ -232,14 +250,20 @@ button.link:hover{color:var(--ink)}
         <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
       </div>
     </div>
-    <div class="row">
+    <div class="row toolbar">
       <div class="seg" role="group" aria-label="Which version to show">
-        <button type="button" id="view-old" aria-pressed="true"
-                title="Your version — the one Save sends">Old</button>
-        <button type="button" id="view-diff" aria-pressed="false"
-                title="What the newer version changes in yours">Diff</button>
-        <button type="button" id="view-new" aria-pressed="false"
-                title="The version that came in — editing it makes it yours">New</button>
+        <button type="button" id="view-old" aria-pressed="true" aria-label="Local"
+                title="Your version — the one Save sends"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
+        </svg><span class="lbl">Local</span></button>
+        <button type="button" id="view-diff" aria-pressed="false" aria-label="Diff"
+                title="What the newer version changes in yours"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9.01 14H2v2h7.01v3L13 15l-3.99-4v3zm5.98-1v-3H22V8h-7.01V5L11 9l3.99 4z"/>
+        </svg><span class="lbl">Diff</span></button>
+        <button type="button" id="view-new" aria-pressed="false" aria-label="Shared"
+                title="The version that came in — editing it makes it yours"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+        </svg><span class="lbl">Shared</span></button>
       </div>
       <span class="grow"></span>
       <input type="file" id="file-input" multiple hidden>
@@ -297,6 +321,7 @@ button.link:hover{color:var(--ink)}
 </div>
 
 </main>
+<script>document.addEventListener('touchstart',function(){},{passive:true})</script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
