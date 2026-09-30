@@ -1,10 +1,9 @@
-// Кодер QR: byte mode, уровень коррекции M, версии 1-6.
+// QR encoder: byte mode, error correction level M, versions 1-6.
 //
-// Код спаривания — это весь секрет, поэтому картинку нельзя запросить у сервиса QR, а
-// CSP не пустит библиотеку с CDN. Отсюда собственный кодер. Версии с 7-й потребовали бы
-// блоков версии и сетки выравнивания; шести хватает на 106 байт — больше, чем любой
-// домен плюс двадцатисимвольный код.
-
+// The pairing code is the whole secret, so the picture cannot be requested from a QR
+// service, and the CSP would not let a library in from a CDN. Hence an encoder of our
+// own. Version 7 and up would need version-information blocks and a grid of alignment
+// patterns; six versions hold 106 bytes, more than any domain plus a 20-character code.
 
 // [size, ec codewords per block, blocks, data codewords per block]. Every version
 // through 6 at level M has equal-sized blocks, which keeps the interleave simple.
@@ -130,22 +129,23 @@ function penalty(modules, size) {
   }
 
   const FINDER = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0];
+  const span = FINDER.length;
   for (let a = 0; a < size; a++) {
-    for (let b = 0; b + 11 <= size; b++) {
+    for (let b = 0; b + span <= size; b++) {
       let forward = true;
       let backward = true;
-      for (let k = 0; k < 11; k++) {
+      for (let k = 0; k < span; k++) {
         const value = at(a, b + k);
         if (value !== FINDER[k]) forward = false;
-        if (value !== FINDER[10 - k]) backward = false;
+        if (value !== FINDER[span - 1 - k]) backward = false;
       }
       if (forward || backward) score += 40;
       forward = true;
       backward = true;
-      for (let k = 0; k < 11; k++) {
+      for (let k = 0; k < span; k++) {
         const value = at(b + k, a);
         if (value !== FINDER[k]) forward = false;
-        if (value !== FINDER[10 - k]) backward = false;
+        if (value !== FINDER[span - 1 - k]) backward = false;
       }
       if (forward || backward) score += 40;
     }
@@ -210,7 +210,8 @@ function qrFunctionPatterns(modules, size, version) {
 }
 
 function qrPlaceFormat(modules, size, mask) {
-  const bits = bchFormat((0b00 << 3) | mask);   // 00 = level M
+  // Error correction level M is 00 in the format bits.
+  const bits = bchFormat((0b00 << 3) | mask);
   for (let i = 0; i < 15; i++) {
     const bit = (bits >> i) & 1;
     if (i < 6) modules[i * size + 8] = bit;

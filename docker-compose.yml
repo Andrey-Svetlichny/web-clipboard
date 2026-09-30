@@ -5,6 +5,9 @@ services:
     environment:
       # Defaults match server/index.mjs; override here if you want a shorter expiry.
       CLIPBOARD_TTL_SECONDS: ${CLIPBOARD_TTL_SECONDS:-86400}
+      # The host's nginx overwrites X-Forwarded-For, so the app can key its per-IP rate
+      # limit on it. Only set this behind a proxy that does; see deploy/nginx-web-clipboard.conf.
+      TRUST_PROXY: "1"
     volumes:
       - clipboard-data:/data
     # Localhost only: the host's nginx terminates TLS and proxies here. Without the

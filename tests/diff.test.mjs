@@ -1,6 +1,8 @@
+// diffLines(): the Diff view's line diff, checked by reconstructing both sides from it.
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diffLines } from '../web/diff.js';
+import { MAX_DIFF_LINES, canDiff, diffLines } from '../web/diff.js';
 
 // Applying only the 'same'+'del' lines must reconstruct the old text, and only the
 // 'same'+'add' lines must reconstruct the new text — true for any diff, not just the
@@ -80,4 +82,16 @@ test('a trailing newline is one more (empty) line, on either side', () => {
     { type: 'same', text: 'a' },
     { type: 'del', text: '' },
   ]);
+});
+
+test('Windows line endings compare equal to plain ones', () => {
+  const ops = diffLines('a\r\nb\r\nc', 'a\nb\nc');
+  assert.ok(ops.every((op) => op.type === 'same'));
+  assert.deepEqual(ops.map((op) => op.text), ['a', 'b', 'c']);
+});
+
+test('canDiff refuses input past the line cap', () => {
+  const half = 'x\n'.repeat(MAX_DIFF_LINES / 2 - 1) + 'x';
+  assert.equal(canDiff(half, half), true);
+  assert.equal(canDiff(half + '\ny', half), false);
 });

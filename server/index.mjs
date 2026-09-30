@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { RateLimiter } from './ratelimit.mjs';
-import { SeqConflict, Store } from './store.mjs';
+import { SeqConflict, Store, roomHash } from './store.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.join(HERE, '..', 'web');
@@ -26,10 +26,13 @@ export const MAX_SLOT = 5;
 const ROOM_KEY_LEN = 16;
 const IV_LEN = 12;
 const SWEEP_EVERY_MS = 300_000;
+// How long an oversized upload may keep arriving after its 413 has been sent.
+const LINGER_MS = 1000;
 
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
+    this.name = 'HttpError';
     this.status = status;
   }
 }
@@ -56,21 +59,22 @@ function inlineHash(html, tag) {
   return cspHash(html.subarray(bodyStart, end));
 }
 
-export function loadAssets(webDir = WEB_DIR) {
+function loadAssets(webDir) {
   const index = readFileSync(path.join(webDir, 'index.html'));
   const icons = new Map();
   const scripts = new Map();
-  // Маски строгие: из каталога отдаётся ровно то, что перечислено, и ничего соседнего.
+  // Strict patterns: the directory serves exactly what they match and nothing beside it.
   for (const name of readdirSync(webDir)) {
     if (/^icon-[\w.-]+\.png$/.test(name)) icons.set(name, readFileSync(path.join(webDir, name)));
     if (/^[\w.-]+\.js$/.test(name)) scripts.set(name, readFileSync(path.join(webDir, name)));
   }
   const csp = [
     "default-src 'none'",
-    // Скрипты — модули с этого же домена. Слабее хеша лишь в теории: сюда нечего
-    // подложить, сервер отдаёт только перечисленное выше, а вложения уходят JSON-ом.
+    // Scripts are modules from this same origin. That is weaker than a hash only in
+    // theory: nothing can be planted here, since the server serves only what is listed
+    // above and attachments leave as JSON.
     "script-src 'self'",
-    // Стили остаются внутри страницы, поэтому по-прежнему прибиты хешем.
+    // The style stays inside the page, so it is still pinned by its hash.
     `style-src ${inlineHash(index, 'style')}`,
     "connect-src 'self'",
     "img-src 'self' data:",
@@ -107,34 +111,47 @@ function send(res, status, body, type, extra = {}) {
   res.writeHead(status, headers).end(body);
 }
 
-const sendJson = (res, status, value) =>
-  send(res, status, JSON.stringify(value), 'application/json; charset=utf-8');
+const sendJson = (res, status, value, extra) =>
+  send(res, status, JSON.stringify(value), 'application/json; charset=utf-8', extra);
 
-async function readBody(req) {
-  const declared = Number(req.headers['content-length']);
-  if (Number.isFinite(declared) && declared > MAX_BODY) throw tooLarge();
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > MAX_BODY) {
-      req.destroy();
-      throw tooLarge();
+// Listeners rather than for await: leaving a for-await loop early destroys the stream,
+// and with it the socket the 413 still has to go out on.
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > MAX_BODY) {
+      reject(tooLarge());
+      return;
     }
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
+    const chunks = [];
+    let size = 0;
+    const onData = (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY) {
+        req.off('data', onData);
+        req.pause();
+        reject(tooLarge());
+        return;
+      }
+      chunks.push(chunk);
+    };
+    req.on('data', onData);
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
 }
 
 // Buffer.from(..., 'base64url') silently ignores characters it does not recognise, so
-// the shape is checked before decoding and the length after.
-function decodeB64u(value, { exact, limit } = {}) {
-  const ceiling = limit ?? MAX_CT;
-  if (typeof value !== 'string' || value.length > ceiling * 2) throw badRequest('bad field');
+// the shape is checked before decoding and the length after. The encoded length is
+// capped first, from the decoded size it may reach: n bytes are ceil(4n / 3) characters.
+function decodeB64u(value, { exact, limit = MAX_CT } = {}) {
+  if (typeof value !== 'string') throw badRequest('bad field');
+  if (value.length > Math.ceil(((exact ?? limit) * 4) / 3)) {
+    throw exact === undefined ? tooLarge() : badRequest('bad length');
+  }
   if (!/^[A-Za-z0-9_-]*$/.test(value)) throw badRequest('bad base64');
   const raw = Buffer.from(value, 'base64url');
   if (exact !== undefined && raw.length !== exact) throw badRequest('bad length');
-  if (limit !== undefined && raw.length > limit) throw tooLarge();
   return raw;
 }
 
@@ -142,14 +159,17 @@ const encodeB64u = (raw) => Buffer.from(raw).toString('base64url');
 
 // Slot 0 is the text and the manifest; 1..MAX_SLOT are files. The server attaches no
 // meaning to either, it just refuses anything outside the range.
-function decodeSlot(value) {
+function validateSlot(value) {
   if (!Number.isInteger(value) || value < 0 || value > MAX_SLOT) throw badRequest('bad slot');
   return value;
 }
 
-function clientIp(req) {
+// X-Forwarded-For is only worth reading behind a proxy that overwrites it, as
+// deploy/nginx-web-clipboard.conf does. Exposed directly, the header says whatever the
+// client wants, and honouring it would let anyone choose their own rate-limit bucket.
+function clientIp(req, trustProxy) {
   const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
+  if (trustProxy && typeof forwarded === 'string' && forwarded.length > 0) {
     return forwarded.split(',')[0].trim();
   }
   return req.socket.remoteAddress ?? '?';
@@ -161,6 +181,7 @@ export function createApp({
   dbPath,
   ttlSeconds = 24 * 60 * 60,
   webDir = WEB_DIR,
+  trustProxy = false,
 } = {}) {
   const assets = loadAssets(webDir);
   const store = new Store(dbPath, ttlSeconds);
@@ -175,6 +196,7 @@ export function createApp({
     store.sweep();
   }
 
+  // Every endpoint starts here, so the sweep runs on reads and writes alike.
   async function readRoom(req) {
     const body = await readBody(req);
     let payload;
@@ -187,18 +209,16 @@ export function createApp({
       throw badRequest('bad json');
     }
     const roomKey = decodeB64u(payload.room, { exact: ROOM_KEY_LEN });
-    if (!ipLimiter.allow(clientIp(req))) throw new HttpError(429, 'slow down');
-    if (!roomLimiter.allow(createHash('sha256').update(roomKey).digest('hex'))) {
-      throw new HttpError(429, 'slow down');
-    }
+    if (!ipLimiter.allow(clientIp(req, trustProxy))) throw new HttpError(429, 'slow down');
+    if (!roomLimiter.allow(roomHash(roomKey))) throw new HttpError(429, 'slow down');
+    maybeSweep();
     return { payload, roomKey };
   }
 
   const routes = {
     'POST /api/get': async (req, res) => {
       const { payload, roomKey } = await readRoom(req);
-      const slot = decodeSlot(payload.slot);
-      maybeSweep();
+      const slot = validateSlot(payload.slot);
       const record = store.get(roomKey, slot);
       if (!record) return send(res, 204, null);
       return sendJson(res, 200, {
@@ -210,7 +230,7 @@ export function createApp({
 
     'POST /api/put': async (req, res) => {
       const { payload, roomKey } = await readRoom(req);
-      const slot = decodeSlot(payload.slot);
+      const slot = validateSlot(payload.slot);
       const { seq } = payload;
       if (!Number.isSafeInteger(seq) || seq <= 0) throw badRequest('bad seq');
       const iv = decodeB64u(payload.iv, { exact: IV_LEN });
@@ -232,7 +252,7 @@ export function createApp({
       const { payload, roomKey } = await readRoom(req);
       // No slot means the whole room, which is how unlinking and "delete everything"
       // stay one request rather than one per attachment.
-      const slot = payload.slot === undefined ? null : decodeSlot(payload.slot);
+      const slot = payload.slot === undefined ? null : validateSlot(payload.slot);
       store.clear(roomKey, slot);
       return sendJson(res, 200, {});
     },
@@ -247,6 +267,22 @@ export function createApp({
     'GET /healthz': (req, res) => send(res, 200, 'ok', 'text/plain; charset=utf-8'),
   };
 
+  // Icons and modules are served from what was read at boot, so they are routes too.
+  for (const [name, bytes] of assets.icons) {
+    routes[`GET /${name}`] = (req, res) => send(res, 200, bytes, 'image/png');
+  }
+  for (const [name, bytes] of assets.scripts) {
+    routes[`GET /${name}`] = (req, res) =>
+      send(res, 200, bytes, 'text/javascript; charset=utf-8');
+  }
+
+  // Path -> the methods it answers, for the Allow header on a 405.
+  const allowed = new Map();
+  for (const key of Object.keys(routes)) {
+    const [method, pathname] = key.split(' ');
+    allowed.set(pathname, [...(allowed.get(pathname) ?? []), method]);
+  }
+
   const server = http.createServer(async (req, res) => {
     let pathname;
     try {
@@ -256,28 +292,35 @@ export function createApp({
     }
 
     try {
-      const route = routes[`${req.method} ${pathname}`];
+      // HEAD is GET without the body, which node:http already drops.
+      const method = req.method === 'HEAD' ? 'GET' : req.method;
+      const route = routes[`${method} ${pathname}`];
       if (route) return await route(req, res);
-
-      const name = pathname.slice(1);
-      if (req.method === 'GET' && assets.icons.has(name)) {
-        return send(res, 200, assets.icons.get(name), 'image/png');
-      }
-      if (req.method === 'GET' && assets.scripts.has(name)) {
-        return send(res, 200, assets.scripts.get(name), 'text/javascript; charset=utf-8');
+      if (allowed.has(pathname)) {
+        return sendJson(res, 405, { error: 'method not allowed' },
+          { allow: allowed.get(pathname).join(', ') });
       }
       return sendJson(res, 404, { error: 'not found' });
     } catch (error) {
-      if (error instanceof HttpError) {
-        return sendJson(res, error.status, { error: error.message });
+      if (!(error instanceof HttpError)) {
+        console.error('unhandled', error);
+        return sendJson(res, 500, { error: 'server error' });
       }
-      console.error('unhandled', error);
-      return sendJson(res, 500, { error: 'server error' });
+      if (req.complete) return sendJson(res, error.status, { error: error.message });
+      // The body is still arriving (an oversized upload). Answer first, then drain it for
+      // a moment: closing on unread data resets the connection, and the client may never
+      // see the response that explains why. An upload that outlasts that is cut off.
+      res.once('finish', () => {
+        const cutOff = setTimeout(() => req.socket.destroy(), LINGER_MS).unref();
+        req.once('end', () => clearTimeout(cutOff));
+        req.resume();
+      });
+      return sendJson(res, error.status, { error: error.message });
     }
   });
 
   server.on('close', () => store.close());
-  return { server, store, assets, roomLimiter, ipLimiter };
+  return { server, roomLimiter, ipLimiter };
 }
 
 // ------------------------------------------------------------------------- main
@@ -288,6 +331,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const { server } = createApp({
     dbPath: process.env.CLIPBOARD_DB ?? '/data/web-clipboard.db',
     ttlSeconds: Number(process.env.CLIPBOARD_TTL_SECONDS ?? 24 * 60 * 60),
+    trustProxy: /^(1|true|yes)$/i.test(process.env.TRUST_PROXY ?? ''),
   });
 
   server.listen(port, host, () => console.log(`web-clipboard listening on ${host}:${port}`));

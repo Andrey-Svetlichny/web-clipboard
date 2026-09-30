@@ -1,15 +1,18 @@
-// Разговор с сервером: запечатать, отправить, забрать, расшифровать.
+// Talking to the server: seal, send, fetch, open.
 //
-// Слот 0 хранит текст и перечень вложений, слоты 1..MAX_FILES — по файлу в каждом.
-// Модуль намеренно не знает про state и DOM: ключи и слот приходят параметрами, иначе
-// получился бы круговой импорт с app.js.
+// Slot 0 holds the text and the list of attachments, slots 1..MAX_FILES one file each.
+// The module deliberately knows nothing of state or the DOM: keys and slots arrive as
+// parameters, or the import of app.js would go round in a circle.
 
-import { DEC, ENC, aad, b64u, seal, unb64u, unseal } from './crypto.js';
+import { DEC, ENC, b64u, seal, unb64u, unseal } from './crypto.js';
 import { describeAgent } from './agent.js';
 
 export const TEXT_SLOT = 0;
 export const MAX_FILES = 5;
 export const MAX_FILE_BYTES = 1024 * 1024;
+export const FROM_MAX = 64;
+const DEVICE_ID_MAX = 32;
+const FILE_NAME_MAX = 120;
 
 export async function api(path, body) {
   const response = await fetch(path, {
@@ -22,7 +25,7 @@ export async function api(path, body) {
   });
   if (response.status === 204) return null;
   let data = null;
-  try { data = await response.json(); } catch (err) { data = null; }
+  try { data = await response.json(); } catch { /* not JSON: nothing more to report */ }
   if (!response.ok) {
     const error = new Error((data && data.error) || ('HTTP ' + response.status));
     error.status = response.status;
@@ -32,7 +35,7 @@ export async function api(path, body) {
   return data;
 }
 
-const room = (session) => b64u(session.roomKey);
+export const room = (session) => b64u(session.roomKey);
 
 // Rollback floors are per slot: one counter shared across slots would race ahead on the
 // text and then trip the server's jump limit the first time a rarely-written file slot
@@ -63,10 +66,8 @@ export async function send(session, slot, plaintext) {
   }
 }
 
-// Slot 0 carries the text and the manifest together, so a peer learns about an
-// attachment in the same fetch that brings it the text.
-// «Мой ноутбук · Chrome/Windows», или только одна половина, если второй нет. Длина
-// ограничена здесь же: строка попадает в заголовок карточки на той стороне.
+// "My laptop · Chrome/Windows", or just one half when the other is missing. The length is
+// capped here too: the string ends up in the card header on the other side.
 export function origin(deviceName, agent) {
   return [deviceName, agent]
     .map((part) => (typeof part === 'string' ? part.trim() : ''))
@@ -75,9 +76,14 @@ export function origin(deviceName, agent) {
     .slice(0, FROM_MAX);
 }
 
-export const sendText = (session, text, files, items) =>
+// Slot 0 carries the text and the manifest together, so a peer learns about an
+// attachment in the same fetch that brings it the text.
+export const sendText = (session, files, items) =>
   send(session, TEXT_SLOT, ENC.encode(JSON.stringify({
-    v: 1, ts: Math.floor(Date.now() / 1000), items, files,
+    v: 1,
+    ts: Math.floor(Date.now() / 1000),
+    items,
+    files,
     from: origin(session.deviceName, describeAgent()),
     // Random per device, so a record can be recognised as our own even when another
     // device has the same browser, platform and (empty) name.
@@ -101,7 +107,7 @@ export async function fetchRecord(session, slot) {
   try {
     plaintext = await unseal(session.encKey, session.roomKey, slot, record.seq,
       unb64u(record.iv), unb64u(record.ct));
-  } catch (err) {
+  } catch {
     return { kind: 'undecryptable' };
   }
 
@@ -118,36 +124,58 @@ export async function fetchText(session) {
   let payload;
   try {
     payload = JSON.parse(DEC.decode(result.plaintext));
-  } catch (err) {
+  } catch {
     return { kind: 'undecryptable' };
   }
-  const items = Array.isArray(payload && payload.items) ? payload.items.filter(
-    (item) => item && typeof item.text === 'string') : [];
-  return { kind: 'ok', items, files: validFiles(payload && payload.files),
-    from: validFrom(payload && payload.from), dev: validFrom(payload && payload.dev), ts: (payload.ts || 0) * 1000 };
+  // It opened, so it came from someone holding the code, but not necessarily from this
+  // client: anything that is not an object is as unreadable as a bad tag.
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { kind: 'undecryptable' };
+  }
+  const items = Array.isArray(payload.items)
+    ? payload.items.filter((item) => item && typeof item.text === 'string')
+    : [];
+  return {
+    kind: 'ok',
+    items,
+    files: validFiles(payload.files),
+    from: cleanString(payload.from, FROM_MAX),
+    dev: cleanString(payload.dev, DEVICE_ID_MAX),
+    ts: Number.isFinite(payload.ts) && payload.ts > 0 ? payload.ts * 1000 : 0,
+  };
 }
 
-// Строка приходит от другого устройства, попадает в разметку и может быть любой:
-// режем длину и управляющие символы, чтобы она не растянула строку и не съехала.
-export const FROM_MAX = 64;
-const validFrom = (from) => (typeof from === 'string'
-  ? from.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, FROM_MAX) : '');
+// A string from another device ends up in the markup and could be anything: cap its
+// length and blank out control characters, so it cannot stretch or break the line.
+const cleanString = (value, max) => (typeof value === 'string'
+  ? value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max) : '');
+
+// A name travels from another device and ends up in a download attribute: keep it to one
+// harmless path segment.
+export const safeName = (name) =>
+  name.replace(/[\\/\u0000-\u001f]/g, '_').slice(0, FILE_NAME_MAX) || 'file';
 
 // Whatever a peer put in the manifest, only entries this client can act on survive:
-// a usable slot, a name to show, and a size to display.
+// a usable slot of its own, a name to show, and a size it could have sent.
 function validFiles(files) {
   if (!Array.isArray(files)) return [];
-  return files.filter((file) => file
-    && Number.isInteger(file.slot) && file.slot >= 1 && file.slot <= MAX_FILES
-    && typeof file.name === 'string' && file.name.length > 0
-    && Number.isFinite(file.size))
-    .slice(0, MAX_FILES)
-    .map((file) => ({
+  const slots = new Set();
+  const valid = [];
+  for (const file of files) {
+    if (!file
+      || !Number.isInteger(file.slot) || file.slot < 1 || file.slot > MAX_FILES
+      || slots.has(file.slot)
+      || typeof file.name !== 'string' || file.name.length === 0
+      || !Number.isInteger(file.size) || file.size < 0 || file.size > MAX_FILE_BYTES) continue;
+    slots.add(file.slot);
+    valid.push({
       slot: file.slot,
-      name: file.name,
+      name: safeName(file.name),
       type: typeof file.type === 'string' ? file.type : '',
       size: file.size,
-    }));
+    });
+  }
+  return valid;
 }
 
 // The whole box is one value: line breaks are part of what you sent, not a separator.

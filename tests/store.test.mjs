@@ -1,13 +1,15 @@
+// server/store.mjs on its own, against a fresh SQLite file per test: sequence rules,
+// slots, expiry and the cascade that keeps a room and its records dying together.
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { DatabaseSync } from 'node:sqlite';
 
-import { SEQ_JUMP_LIMIT, SeqConflict, Store } from '../server/store.mjs';
+import { SEQ_JUMP_LIMIT, SeqConflict, Store, roomHash } from '../server/store.mjs';
 
 const ROOM = Buffer.alloc(16, 0x01);
 const OTHER = Buffer.alloc(16, 0x02);
@@ -100,7 +102,28 @@ test('the raw room key is never persisted', (t) => {
   store.close();
   const blob = readFileSync(file);
   assert.equal(blob.includes(ROOM), false);
-  assert.ok(blob.includes(Buffer.from(createHash('sha256').update(ROOM).digest('hex'))));
+  assert.ok(blob.includes(Buffer.from(roomHash(ROOM))));
+});
+
+test('writing to an expired room does not revive its other slots', (t) => {
+  // Before the sweep gets to it, an expired room is still on disk. A write that merely
+  // extended it would bring the old file back, and its seq floor with it.
+  const { store } = freshStore(60);
+  t.after(() => store.close());
+  store.put(ROOM, FILE, 5, IV, CT, 1000);
+  store.put(ROOM, TEXT, 1, IV, CT, 1061);
+  assert.equal(store.get(ROOM, FILE, 1062), null);
+  store.put(ROOM, FILE, 1, IV, CT, 1062);
+  assert.equal(store.get(ROOM, FILE, 1062).seq, 1);
+});
+
+test('a refused write leaves the room as it was', (t) => {
+  const { store } = freshStore(60);
+  t.after(() => store.close());
+  store.put(ROOM, TEXT, 1, IV, CT, 1000);
+  assert.throws(() => store.put(ROOM, TEXT, 1, IV, CT, 1050), SeqConflict);
+  // The conflicting write must not have extended the room past its original 1060.
+  assert.equal(store.get(ROOM, TEXT, 1061), null);
 });
 
 test('slots in a room are independent', (t) => {

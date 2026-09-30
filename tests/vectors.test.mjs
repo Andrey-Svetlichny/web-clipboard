@@ -1,4 +1,5 @@
-// Cross-checks against web/index.html. The highest-value tests here: a key-schedule
+// Cross-checks the browser's crypto (web/crypto.js, web/code.js) against the independent
+// tests/reference.mjs, through vectors.json. The highest-value tests here: a key-schedule
 // mismatch is silent at runtime and painful to debug.
 
 import test from 'node:test';
@@ -75,7 +76,7 @@ test('vectors.json is not stale', () => {
   // Regenerating and comparing means editing the page's crypto without refreshing the
   // vectors fails here, instead of passing against a stale file.
   const fresh = path.join(mkdtempSync(path.join(tmpdir(), 'clipboard-')), 'vectors.json');
-  execFileSync(process.execPath, [path.join(ROOT, 'tests', 'make_vectors.mjs'), fresh], {
+  execFileSync(process.execPath, [path.join(ROOT, 'tests', 'make-vectors.mjs'), fresh], {
     cwd: ROOT,
     stdio: 'pipe',
   });

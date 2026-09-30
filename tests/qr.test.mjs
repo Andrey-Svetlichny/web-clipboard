@@ -1,7 +1,9 @@
+// qrMatrix(): every encoded link is read back by an independent decoder (qr-reader.mjs).
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { qrMatrix } from '../web/qr.js';
-import { decode, functionMap } from './qr_reader.mjs';
+import { decode, functionMap } from './qr-reader.mjs';
 
 // Capacity in bytes for versions 1-6 at level M.
 const CAPACITY = [14, 26, 42, 62, 84, 106];
@@ -73,7 +75,10 @@ test('every data module is covered by the reader, none left unwritten', () => {
   let free = 0;
   for (const value of reserved) if (!value) free++;
 
-  const [, ecCount, blocks, perBlock] = [0, 18, 2, 32];   // version 4 at level M
+  // Version 4 at level M: two blocks of 32 data and 18 error-correction codewords.
+  const blocks = 2;
+  const perBlock = 32;
+  const ecCount = 18;
   assert.equal(code.version, 4);
   const codewordBits = blocks * (perBlock + ecCount) * 8;
   // Version 4 leaves 7 remainder bits that carry no codeword.

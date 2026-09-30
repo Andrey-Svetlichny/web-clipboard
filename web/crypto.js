@@ -1,5 +1,5 @@
-// Ключи и запечатывание записей. Второй, независимой реализацией этого же служит
-// tests/reference.mjs — вектора сверяют их друг с другом.
+// Keys and record sealing. tests/reference.mjs is a second, independent implementation of
+// the same, and the vectors check the two against each other.
 
 export const ENC = new TextEncoder();
 export const DEC = new TextDecoder();
@@ -8,11 +8,14 @@ const SALT = ENC.encode('web-clipboard/v1');
 const INFO_ROOM = ENC.encode('web-clipboard/v1 r');
 const INFO_KEY = ENC.encode('web-clipboard/v1 k');
 
+// b64u converts in chunks of this many bytes: one append per byte is fine for a 12-byte
+// IV and painful for a 1 MiB file.
+const CHUNK = 8192;
+
 export function b64u(bytes) {
   let binary = '';
-  // In chunks: one append per byte is fine for a 12-byte IV and painful for a 1 MiB file.
-  for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
   }
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

@@ -12,6 +12,8 @@ export class RateLimiter {
     const bucket = this.buckets.get(key) ?? { tokens: this.capacity, last: at };
     const tokens = Math.min(this.capacity, bucket.tokens + (at - bucket.last) * this.refill);
     if (tokens < 1) {
+      // No prune on a denial: a refused key is already in the map, so the map cannot
+      // grow here, and a flood of refusals should cost as little as possible.
       this.buckets.set(key, { tokens, last: at });
       return false;
     }
@@ -26,6 +28,9 @@ export class RateLimiter {
     for (const [key, bucket] of this.buckets) {
       if (at - bucket.last > fullAfter) this.buckets.delete(key);
     }
+    // Still over after pruning means more live keys than the cap allows, which is a
+    // flood rather than traffic. Forgetting everyone briefly lets a few requests through;
+    // the alternative is unbounded memory, so this is the intended trade.
     if (this.buckets.size > this.maxKeys) this.buckets.clear();
   }
 }

@@ -1,12 +1,32 @@
 // Line diff for showing what changed when another device updates the shared text.
 //
-// Myers' O(ND) algorithm, hand-rolled rather than pulled in as a dependency — same
-// house style as tests/reference.mjs, which expands HKDF by hand from RFC 5869 instead
-// of leaning on a library. A Map keyed by the diagonal k avoids the usual off-by-one
-// array-offset bugs this algorithm is notorious for, including at the empty/empty edge.
+// Myers' O(ND) algorithm, written out rather than pulled in as a dependency. A Map keyed
+// by the diagonal k avoids the array-offset off-by-ones this algorithm is notorious for,
+// including at the empty/empty edge.
+
+// The trace keeps one copy of the frontier per edit step, so memory grows with the square
+// of the edit distance, and time with lines times distance. The use case is short secrets;
+// these caps only stop a huge paste from stalling or exhausting the tab.
+export const MAX_DIFF_LINES = 1_000;
+export const MAX_DIFF_CHARS = 200_000;
+
+// A file pasted from Windows compares equal to the same text typed elsewhere.
+const splitLines = (text) => (text === '' ? [] : text.split(/\r?\n/));
+
+const countLines = (text) => {
+  let lines = 1;
+  for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) lines++;
+  return lines;
+};
+
+export function canDiff(oldText, newText) {
+  return oldText.length + newText.length <= MAX_DIFF_CHARS
+    && countLines(oldText) + countLines(newText) <= MAX_DIFF_LINES;
+}
 
 function shortestEdit(a, b) {
-  const n = a.length, m = b.length;
+  const n = a.length;
+  const m = b.length;
   const max = n + m;
   const v = new Map([[1, 0]]);
   const trace = [];
@@ -31,7 +51,8 @@ function shortestEdit(a, b) {
 // Walks the trace back to front, turning it into [fromX, fromY, toX, toY] steps: a
 // diagonal step is an unchanged line, an axis-aligned step is an insertion or deletion.
 function backtrack(a, b, trace) {
-  let x = a.length, y = b.length;
+  let x = a.length;
+  let y = b.length;
   const segments = [];
   for (let d = trace.length - 1; d >= 0; d--) {
     const v = trace[d];
@@ -50,10 +71,11 @@ function backtrack(a, b, trace) {
 }
 
 // A modified line is not detected specially: it comes out as a 'del' immediately
-// followed by an 'add', which is what every line-diff viewer shows anyway.
+// followed by an 'add', which is what every line-diff viewer shows anyway. Callers check
+// canDiff first; past the caps this still works, just slowly.
 export function diffLines(oldText, newText) {
-  const a = oldText === '' ? [] : oldText.split('\n');
-  const b = newText === '' ? [] : newText.split('\n');
+  const a = splitLines(oldText);
+  const b = splitLines(newText);
   const trace = shortestEdit(a, b);
   return backtrack(a, b, trace).map(([px, py, x, y]) => {
     if (x === px) return { type: 'add', text: b[py] };

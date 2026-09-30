@@ -1,8 +1,11 @@
+// describeAgent() and origin(): the "who" half of the line a peer sees above the text.
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { describeAgent } from '../web/agent.js';
+import { FROM_MAX, origin } from '../web/api.js';
 
-test('userAgent разбирается в «браузер/платформа»', () => {
+test('a userAgent string is read as "browser/platform"', () => {
   const cases = [
     ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
       + 'Chrome/131.0.0.0 Safari/537.36', 'Chrome/Windows'],
@@ -22,8 +25,8 @@ test('userAgent разбирается в «браузер/платформа»'
   }
 });
 
-test('userAgentData важнее и чистится от служебных брендов', () => {
-  // Chromium отдаёт три бренда, осмысленный из них один.
+test('userAgentData wins, with the placeholder brands stripped', () => {
+  // Chromium lists three brands, of which only one means anything.
   assert.equal(describeAgent({
     userAgentData: {
       platform: 'Windows',
@@ -41,27 +44,25 @@ test('userAgentData важнее и чистится от служебных б�
   }), 'Edge/macOS');
 });
 
-test('на неизвестном агенте возвращается пустая строка, а не мусор', () => {
+test('an unknown agent gives an empty string, not garbage', () => {
   assert.equal(describeAgent({ userAgent: 'curl/8.4.0' }), '');
   assert.equal(describeAgent({}), '');
-  // Платформа без узнаваемого браузера всё же полезнее пустоты.
+  // A platform without a recognisable browser is still more useful than nothing.
   assert.equal(describeAgent({ userAgent: 'SomeBot (Windows NT 10.0)' }), 'Windows');
 });
 
-test('origin склеивает имя устройства с браузером', async () => {
-  const { origin, FROM_MAX } = await import('../web/api.js');
-
-  assert.equal(origin('Мой ноутбук', 'Chrome/Windows'), 'Мой ноутбук · Chrome/Windows');
-  // Любой половины может не быть: разделитель тогда не появляется.
+test('origin joins the device name to the browser', () => {
+  assert.equal(origin('My laptop', 'Chrome/Windows'), 'My laptop · Chrome/Windows');
+  // Either half may be missing, and then no separator appears.
   assert.equal(origin('', 'Safari/iPhone'), 'Safari/iPhone');
-  assert.equal(origin('Ноутбук', ''), 'Ноутбук');
+  assert.equal(origin('Laptop', ''), 'Laptop');
   assert.equal(origin('', ''), '');
-  assert.equal(origin('  Ноутбук  ', ' Firefox/Linux '), 'Ноутбук · Firefox/Linux');
-  // Не строки приходят от чужого кода и не должны ломать склейку.
+  assert.equal(origin('  Laptop  ', ' Firefox/Linux '), 'Laptop · Firefox/Linux');
+  // Non-strings come from someone else's code and must not break the join.
   assert.equal(origin(undefined, 'Chrome/Android'), 'Chrome/Android');
   assert.equal(origin(null, null), '');
 
-  // Строка едет в заголовок карточки на той стороне, поэтому длина ограничена здесь.
-  const long = origin('Д'.repeat(60), 'Chrome/Windows');
+  // The string ends up in the card header on the other side, so its length is capped here.
+  const long = origin('é'.repeat(60), 'Chrome/Windows');
   assert.equal(long.length, FROM_MAX);
 });

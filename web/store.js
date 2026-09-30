@@ -1,48 +1,67 @@
-// Ключи устройства в IndexedDB. Запись идёт только при «запомнить это устройство»:
-// на чужой машине всё остаётся в памяти вкладки.
+// Device keys in IndexedDB. Written only when "stay signed in" is chosen: on someone
+// else's machine everything stays in the tab's memory.
 
 const DB_NAME = 'web-clipboard';
 const DB_STORE = 'kv';
 const DB_KEY = 'device';
 
-export function openDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(DB_STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+// One connection for the life of the page, opened on first use.
+let connection = null;
+
+function openDb() {
+  if (!connection) {
+    connection = new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(DB_STORE);
+      request.onsuccess = () => {
+        const db = request.result;
+        // Another tab upgrading the schema, or the browser closing the connection under
+        // us: let it go, and the next call opens a fresh one.
+        db.onversionchange = () => {
+          db.close();
+          connection = null;
+        };
+        db.onclose = () => { connection = null; };
+        resolve(db);
+      };
+      request.onerror = () => reject(request.error);
+    });
+    // A failed open is not cached either.
+    connection.catch(() => { connection = null; });
+  }
+  return connection;
 }
 
-export function tx(db, mode, run) {
+// Resolves once the transaction has committed, not merely when its request succeeded:
+// a write is not on disk until then.
+async function tx(mode, run) {
+  const db = await openDb();
   return new Promise((resolve, reject) => {
-    const request = run(db.transaction(DB_STORE, mode).objectStore(DB_STORE));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    const transaction = db.transaction(DB_STORE, mode);
+    const request = run(transaction.objectStore(DB_STORE));
+    transaction.oncomplete = () => resolve(request.result);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error('transaction aborted'));
   });
 }
 
 export async function loadDevice() {
   try {
-    const db = await openDb();
-    return await tx(db, 'readonly', (s) => s.get(DB_KEY));
-  } catch (err) {
+    return await tx('readonly', (store) => store.get(DB_KEY));
+  } catch {
     return null;
   }
 }
 
-// Решение «писать или нет» принимает вызывающий: сюда приходит уже готовая запись.
-// Ошибку не глотаем — тому, кто вызвал, есть что сказать пользователю.
+// Whether to write at all is the caller's decision: what arrives here is the finished
+// record. Errors are not swallowed, since the caller has something to tell the user.
 export async function saveDevice({ roomKey, encKey, seqs, deviceName, autoRefresh, deviceId }) {
-  const db = await openDb();
-  await tx(db, 'readwrite',
-    (s) => s.put({ roomKey, encKey, seqs, deviceName, autoRefresh, deviceId }, DB_KEY));
+  await tx('readwrite',
+    (store) => store.put({ roomKey, encKey, seqs, deviceName, autoRefresh, deviceId }, DB_KEY));
 }
 
 export async function wipeDevice() {
   try {
-    const db = await openDb();
-    await tx(db, 'readwrite', (s) => s.delete(DB_KEY));
-    db.close();
-  } catch (err) { /* nothing worth reporting; the page reloads either way */ }
+    await tx('readwrite', (store) => store.delete(DB_KEY));
+  } catch { /* nothing worth reporting; the page reloads either way */ }
 }

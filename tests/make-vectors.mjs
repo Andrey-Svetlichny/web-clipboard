@@ -1,16 +1,13 @@
 // Emits tests/vectors.json by running the very modules the browser loads.
-// Node >= 18. Usage: node tests/make_vectors.mjs [outfile]
+// Node >= 22.13. Usage: node tests/make-vectors.mjs [outfile]
 
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import * as codes from '../web/code.js';
-import * as sealing from '../web/crypto.js';
-import { parseItems } from '../web/api.js';
+import { core } from './client.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const core = { ...codes, ...sealing, parseItems };
 
 const encoder = new TextEncoder();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -18,7 +15,7 @@ const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).jo
 const BODIES = [
   '0123456789ABCDEFGHJ',
   'ZZZZZZZZZZZZZZZZZZZ',
-  '00000000000000000000'.slice(0, 19),
+  '0'.repeat(19),
   'KMNPQRSTVWXYZ0123AB',
 ];
 

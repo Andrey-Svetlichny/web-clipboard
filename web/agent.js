@@ -1,8 +1,7 @@
-// Короткая строка о себе: «Chrome/Windows».
+// A short description of this browser: "Chrome/Windows".
 //
-// Устройство знает это о себе само, поэтому сервер в этом не участвует и ничего лишнего
-// в записи не оседает.
-
+// The device knows this about itself, so the server plays no part in it and nothing extra
+// settles in the record.
 
 const BROWSERS = [
   [/Edg\//, 'Edge'], [/OPR\/|Opera/, 'Opera'], [/Firefox\//, 'Firefox'],
@@ -14,18 +13,20 @@ const PLATFORMS = [
 ];
 const BRAND_NAMES = { 'Google Chrome': 'Chrome', 'Microsoft Edge': 'Edge' };
 
+function match(table, text) {
+  for (const [pattern, name] of table) if (pattern.test(text)) return name;
+  return '';
+}
+
+// nav is a test seam: the page passes nothing and gets the real navigator.
 export function describeAgent(nav) {
   const source = nav || (typeof navigator === 'undefined' ? {} : navigator);
-  const match = (table, text) => {
-    for (const [pattern, name] of table) if (pattern.test(text)) return name;
-    return '';
-  };
 
   let browser = '';
   let platform = '';
   const hints = source.userAgentData;
   if (hints && Array.isArray(hints.brands)) {
-    // Chromium раскладывает бренды на три штуки, из которых нужен один осмысленный.
+    // Chromium lists three brands, of which only one means anything.
     const brand = hints.brands.map((entry) => entry && entry.brand)
       .find((name) => name && !/not[^a-z]*a[^a-z]*brand/i.test(name) && name !== 'Chromium');
     if (brand) browser = BRAND_NAMES[brand] || brand;

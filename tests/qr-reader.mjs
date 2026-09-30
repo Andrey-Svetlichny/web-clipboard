@@ -1,8 +1,9 @@
-// Reads back what web/index.html's qrMatrix() produced: format info, unmask, de-interleave, then
-// mode, length and payload. No error correction — it only has to read back what was
+// Reads back what qrMatrix() in web/qr.js produced: format info, unmask, de-interleave,
+// then mode, length and payload. No error correction — it only has to read back what was
 // written, which is enough to catch a wrong mask, format, interleave or placement.
 
-const BLOCKS = {   // version -> [ec per block, blocks, data per block]
+// version -> [ec codewords per block, blocks, data codewords per block]
+const BLOCKS = {
   1: [10, 1, 16], 2: [16, 1, 28], 3: [26, 1, 44],
   4: [18, 2, 32], 5: [24, 2, 43], 6: [16, 4, 27],
 };

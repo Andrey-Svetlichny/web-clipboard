@@ -1,2 +1,11 @@
+# The image needs package.json, server/ and web/; nothing else is copied in.
 .git
 .env
+.env.example
+dev.env
+dev.db*
+node_modules
+tests
+artifacts
+data
+*.md

@@ -46,9 +46,9 @@ CREATE INDEX IF NOT EXISTS rooms_expiry ON rooms (expires_at);
 const now = () => Math.floor(Date.now() / 1000);
 
 export class Store {
-  constructor(path, ttlSeconds) {
+  constructor(dbPath, ttlSeconds) {
     this.ttl = ttlSeconds;
-    this.db = new DatabaseSync(path);
+    this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA synchronous = NORMAL');
     // Off by default in SQLite, and the cascade below is silently a no-op without it.
@@ -59,9 +59,9 @@ export class Store {
     this.selectStmt = this.db.prepare(
       'SELECT seq, iv, ct FROM records JOIN rooms USING (room_hash) '
       + 'WHERE room_hash = ? AND slot = ? AND expires_at > ?');
+    // No expiry test here: put drops an expired room before it asks.
     this.seqStmt = this.db.prepare(
-      'SELECT seq FROM records JOIN rooms USING (room_hash) '
-      + 'WHERE room_hash = ? AND slot = ? AND expires_at > ?');
+      'SELECT seq FROM records WHERE room_hash = ? AND slot = ?');
     this.touchStmt = this.db.prepare(
       'INSERT INTO rooms (room_hash, expires_at) VALUES (?, ?) '
       + 'ON CONFLICT(room_hash) DO UPDATE SET expires_at = excluded.expires_at');
@@ -70,6 +70,8 @@ export class Store {
       + 'ON CONFLICT(room_hash, slot) DO UPDATE SET seq = excluded.seq, '
       + 'iv = excluded.iv, ct = excluded.ct');
     this.deleteRoomStmt = this.db.prepare('DELETE FROM rooms WHERE room_hash = ?');
+    this.deleteExpiredRoomStmt = this.db.prepare(
+      'DELETE FROM rooms WHERE room_hash = ? AND expires_at <= ?');
     this.deleteSlotStmt = this.db.prepare(
       'DELETE FROM records WHERE room_hash = ? AND slot = ?');
     this.sweepStmt = this.db.prepare('DELETE FROM rooms WHERE expires_at <= ?');
@@ -93,12 +95,18 @@ export class Store {
   // whole room, so attachments never expire out from under the text that names them.
   put(roomKey, slot, seq, iv, ct, at = now()) {
     const hash = roomHash(roomKey);
-    const row = this.seqStmt.get(hash, slot, at);
-    const current = row ? Number(row.seq) : 0;
-    if (!(current < seq && seq <= current + SEQ_JUMP_LIMIT)) throw new SeqConflict(current);
-    this.touchStmt.run(hash, at + this.ttl);
-    this.upsertStmt.run(hash, slot, seq, iv, ct);
-    return seq;
+    return this.transaction(() => {
+      // An expired room reads as empty, so it must be empty before it is written again.
+      // Touching it in place would revive its other slots, and their sequence floors,
+      // under the new expiry. The cascade takes the records with it.
+      this.deleteExpiredRoomStmt.run(hash, at);
+      const row = this.seqStmt.get(hash, slot);
+      const current = row ? Number(row.seq) : 0;
+      if (!(current < seq && seq <= current + SEQ_JUMP_LIMIT)) throw new SeqConflict(current);
+      this.touchStmt.run(hash, at + this.ttl);
+      this.upsertStmt.run(hash, slot, seq, iv, ct);
+      return seq;
+    });
   }
 
   // With a slot, drops that record alone. Without one, drops the room and every record
@@ -107,6 +115,21 @@ export class Store {
     const hash = roomHash(roomKey);
     if (slot === null) return this.deleteRoomStmt.run(hash).changes > 0;
     return this.deleteSlotStmt.run(hash, slot).changes > 0;
+  }
+
+  // All or nothing, so a failed upsert never leaves a room extended with nothing new in
+  // it. node:sqlite has no helper for this, and needs none: every call is synchronous,
+  // so nothing else can run between BEGIN and COMMIT.
+  transaction(run) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = run();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 }
 

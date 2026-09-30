@@ -1,11 +1,8 @@
 // End-to-end smoke test against a running server, driving the very modules the browser
 // loads. Usage: node tests/smoke.mjs [base-url]
 
-import * as codes from '../web/code.js';
-import * as sealing from '../web/crypto.js';
-import { parseItems } from '../web/api.js';
+import { core } from './client.mjs';
 
-const core = { ...codes, ...sealing, parseItems };
 const base = (process.argv[2] || 'http://127.0.0.1:8080').replace(/\/$/, '');
 
 const encoder = new TextEncoder();
@@ -69,7 +66,7 @@ let tampered = false;
 try {
   await core.unseal(keys.encKey, keys.roomKey, TEXT, seq + 1,
     core.unb64u(got.data.iv), core.unb64u(got.data.ct));
-} catch (err) {
+} catch {
   tampered = true;
 }
 check('a record cannot be replayed at another sequence', tampered);
@@ -78,7 +75,7 @@ let moved = false;
 try {
   await core.unseal(keys.encKey, keys.roomKey, FILE, seq,
     core.unb64u(got.data.iv), core.unb64u(got.data.ct));
-} catch (err) {
+} catch {
   moved = true;
 }
 check('a record cannot be moved into another slot', moved);

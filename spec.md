@@ -36,8 +36,15 @@ Displayed in four groups of five for legibility: `XXXXX-XXXXX-XXXXX-XXXXX`.
 5. Reject unless exactly 20 characters remain.
 6. Reject if the checksum character does not match.
 
-A 5-bit checksum admits roughly 1 typo in 32. That is why the UI distinguishes
-"code looks wrong" from "paired but empty" from "could not decrypt" — see README_FULL.md.
+A 5-bit checksum admits roughly 1 typo in 32. That is why the UI keeps three states
+apart, so a typo that slips past the checksum is still recognisable as one:
+
+- **Code looks wrong** — normalisation rejected the input (bad length, character or
+  checksum). Nothing is sent; the user is asked to check for a typo.
+- **Paired but empty** — the code was accepted and the room answers `204`. This is what a
+  new room looks like, and also what a mistyped code that passed the checksum looks like.
+- **Could not decrypt** — the room holds a record, but it does not open under this
+  device's `encKey`: most likely the devices were paired with different codes.
 
 ## 2. Key schedule
 
@@ -137,9 +144,9 @@ Binary fields are base64url, unpadded.
 `slot` is an integer `0..MAX_SLOT`. `/api/clear` without a `slot` deletes the whole room
 (every slot); with a `slot` it deletes only that one record.
 
-Errors: `400` malformed, `409 {seq}` sequence conflict (body carries the server's
-current seq for that slot so the client can resynchronise), `413` too large, `429` rate
-limited.
+Errors: `400` malformed, `405` wrong method for a known path, `409 {seq}` sequence
+conflict (body carries the server's current seq for that slot so the client can
+resynchronise), `413` too large, `429` rate limited.
 
 ### Sequence rules (server-enforced, per slot)
 
@@ -177,4 +184,6 @@ keep two honest devices consistent; the timestamp is what a person can actually 
 - Attachment plaintext: the client itself enforces at most 5 files (`MAX_FILES`) of at
   most 1 MiB each (`MAX_FILE_BYTES`) — the server just carries whatever fits under
   `MAX_CT`.
-- Rate limit: 120 requests per 10 min per room, 300 per 10 min per IP.
+- Rate limit: 120 requests per 10 min per room, 300 per 10 min per IP. The IP is the TCP
+  peer, or the first `X-Forwarded-For` entry when the server runs with `TRUST_PROXY` set
+  behind a proxy that overwrites that header.

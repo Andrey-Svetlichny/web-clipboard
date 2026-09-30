@@ -2,3 +2,9 @@
 dev.db
 dev.db-shm
 dev.db-wal
+
+# Local state that never belongs in the repo.
+node_modules/
+artifacts/
+data/
+.env

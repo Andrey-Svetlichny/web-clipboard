@@ -11,173 +11,308 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Note">
-<meta name="theme-color" content="#11151a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f5">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#11151a">
 <style>
+/* --- tokens --- */
 :root{
-  --bg:#f7f7f5; --card:#fff; --ink:#15181d; --muted:#666f7a; --line:#dfe1e4;
-  --accent:#2f6d4f; --accent-ink:#fff; --bad:#8c2f2f; --warn:#a15c07; --warn-ink:#fff;
-  --add-bg:#e3f3e9; --del-bg:#fbe9e9; --seg-on:#e6e8eb;
-  /* Главная кнопка — цветом текста, а не акцентом: зелёный остаётся только у diff. */
-  --primary:var(--ink); --primary-ink:var(--card); --ring:rgba(21,24,29,.10);
+  --bg:#f7f7f5;
+  --card:#fff;
+  --ink:#15181d;
+  --muted:#666f7a;
+  --line:#dfe1e4;
+  --ring:rgba(21,24,29,.10);
+  --accent:#2f6d4f;
+  --bad:#8c2f2f;
+  --warn:#a15c07;
+  --warn-ink:#fff;
+  --add-bg:#e3f3e9;
+  --del-bg:#fbe9e9;
+  --seg-on:#e6e8eb;
+  /* The main button takes the text colour, not the accent: green is kept for the diff. */
+  --primary:var(--ink);
+  --primary-ink:var(--card);
+  --gutter:16px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#11151a; --card:#191e25; --ink:#e8eaed; --muted:#9aa4b0; --line:#2a313a;
-    --accent:#4c9c74; --accent-ink:#08120c; --bad:#e08a8a; --warn:#e3a869; --warn-ink:#241506;
-    --add-bg:#173425; --del-bg:#3a1f1f; --seg-on:#2c333d;
+    --bg:#11151a;
+    --card:#191e25;
+    --ink:#e8eaed;
+    --muted:#9aa4b0;
+    --line:#2a313a;
     --ring:rgba(232,234,237,.14);
+    --accent:#4c9c74;
+    --bad:#e08a8a;
+    --warn:#e3a869;
+    --warn-ink:#241506;
+    --add-bg:#173425;
+    --del-bg:#3a1f1f;
+    --seg-on:#2c333d;
   }
 }
+
+/* --- base --- */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{
-  margin:0; background:var(--bg); color:var(--ink);
+  margin:0;
   font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--ink);
+  background:var(--bg);
   -webkit-text-size-adjust:100%;
 }
-/* dvh, а не vh: на телефоне vh считается от экрана без учёта сворачивающейся панели
-   браузера, и низ страницы уезжает под неё. --app-h — высота над клавиатурой, её
-   выставляет app.js там, где dvh под клавиатурой не сжимается (iOS). */
+h2{margin:0 0 10px; font-size:15px; font-weight:600}
+p{margin:0 0 12px; font-size:14px; color:var(--muted)}
+button{
+  min-height:44px;
+  padding:11px 16px;
+  font:inherit;
+  font-size:15px;
+  font-weight:500;
+  color:var(--ink);
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:9px;
+  cursor:pointer;
+  transition:background-color .15s, opacity .15s, box-shadow .15s;
+}
+/* :where has zero specificity, so any rule with a class (primary, icon, seg, link…)
+   overrides these shared states. */
+:where(button:hover:not(:disabled)){background:var(--bg)}
+:where(button:focus-visible){outline:none; box-shadow:0 0 0 3px var(--ring)}
+button:disabled{opacity:.45; cursor:default}
+button.primary{color:var(--primary-ink); background:var(--primary); border-color:transparent}
+button.primary:hover:not(:disabled){opacity:.88}
+button.warn{color:var(--warn-ink); background:var(--warn); border-color:transparent}
+button.link{
+  min-height:0;
+  padding:8px 4px;
+  color:var(--muted);
+  background:none;
+  border:none;
+  text-decoration:underline;
+}
+button.link:hover{color:var(--ink)}
+/* Every field looks the same, and so does the diff view that stands in for the main one. */
+textarea,input[type=text],.diff-view{
+  width:100%;
+  padding:11px 12px;
+  font:16px/1.45 var(--mono);
+  color:var(--ink);
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:9px;
+  transition:border-color .15s, box-shadow .15s;
+}
+/* Focus darkens the border and adds a soft halo, rather than a hard coloured outline. */
+textarea:focus,input[type=text]:focus{
+  outline:none;
+  border-color:var(--muted);
+  box-shadow:0 0 0 3px var(--ring);
+}
+
+/* --- layout --- */
+/* dvh, not vh: on a phone vh is measured against the screen without the browser's
+   collapsing toolbar, so the bottom of the page slides under it. --app-h is the height
+   above the keyboard, set by app.js where dvh does not shrink for it (iOS). */
 main{
-  max-width:640px; margin:0 auto; min-height:var(--app-h, 100dvh); display:flex; flex-direction:column;
-  padding:20px 16px 20px; padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  display:flex;
+  flex-direction:column;
+  max-width:640px;
+  min-height:var(--app-h, 100dvh);
+  margin:0 auto;
+  padding:20px var(--gutter);
+  padding-bottom:calc(20px + env(safe-area-inset-bottom));
 }
-/* min-height:0 обязателен всюду по цепочке, иначе textarea не даст контейнеру сжаться. */
-.screen[data-screen="main"]{display:flex; flex-direction:column; flex:1 1 auto; min-height:0}
-.screen[data-screen="main"] .card{
-  display:flex; flex-direction:column; flex:1 1 auto; min-height:0; position:relative;
+.card{
+  margin-bottom:14px;
+  padding:16px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:12px;
 }
-h2{font-size:15px; font-weight:600; margin:0 0 10px}
-p{margin:0 0 12px; color:var(--muted); font-size:14px}
-.card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px}
-/* Ниже main-а собственной max-width карточка и так во весь экран: рамка+фон+паддинг —
-   рамка вокруг рамки. На телефоне убираем, поля и кнопки сами себя очерчивают. */
-@media (max-width:640px){
-  .card{background:none; border:none; padding:0}
-  .screen[data-screen="main"] .card{margin-bottom:0}
-}
-h2.spaced{margin-top:24px}
-/* Только там, где есть мышь: на телефоне карточка и так во весь экран. */
+/* min-height:0 is needed at every level of the chain, or the textarea will not let its
+   container shrink. */
+.screen[data-screen="main"],
+.screen[data-screen="main"] .card{display:flex; flex-direction:column; flex:1 1 auto; min-height:0}
+.screen[data-screen="main"] .card{position:relative}
+.row{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.row.end{justify-content:flex-end}
+.row.center{justify-content:center}
+.grow{flex:1 1 auto}
+/* Only where there is a mouse: on a phone the card fills the screen anyway. */
 .grip{display:none}
 @media (hover:hover) and (pointer:fine){
   .grip{
-    display:block; position:absolute; right:3px; bottom:3px; width:16px; height:16px;
-    cursor:nwse-resize; touch-action:none;
+    position:absolute;
+    right:3px;
+    bottom:3px;
+    display:block;
+    width:16px;
+    height:16px;
     background:
       linear-gradient(135deg, transparent 46%, var(--line) 46%, var(--line) 54%, transparent 54%),
       linear-gradient(135deg, transparent 71%, var(--line) 71%, var(--line) 79%, transparent 79%);
+    cursor:nwse-resize;
+    touch-action:none;
   }
   .grip:hover{filter:brightness(1.6)}
 }
-/* Строка «кто · когда» — под тулбаром, над полем. */
-.meta{font-size:13px; line-height:18px; color:var(--muted); margin:6px 0 8px;
-       white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.meta span:not(:empty)~span:not(:empty)::before{content:' – '}
-.meta #send-status.bad{color:var(--bad)}
-textarea,input[type=text],.diff-view{
-  width:100%; font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  color:var(--ink); background:var(--bg); border:1px solid var(--line);
-  border-radius:9px; padding:11px 12px; resize:vertical;
-  transition:border-color .15s, box-shadow .15s;
+
+/* --- toolbar --- */
+/* The gaps here and inside the segments shrink with the screen; the toolbar never wraps. */
+.toolbar{flex-wrap:nowrap; gap:clamp(2px, 1.5vw, 8px); container-type:inline-size}
+/* Local / Diff / Shared: one pill split into three segments, the active one grey. */
+.seg{display:inline-flex; flex:none; overflow:hidden; border:1px solid var(--line); border-radius:12px}
+.seg button{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:42px;
+  padding:0 clamp(8px, 3vw, 14px);
+  font-size:14px;
+  background:var(--card);
+  border:none;
+  border-radius:0;
 }
-textarea{min-height:180px; resize:vertical}
-/* Размер тянется за угол карточки, а не за собственный уголок поля. */
-#box{flex:1 1 auto; min-height:120px; resize:none}
-/* Показывается вместо #box, не поверх: обычная textarea не умеет красить свой текст
-   построчно, так что подсвеченный вид и редактируемое поле — два разных элемента,
-   переключаемые через hidden, как экраны. */
-.diff-view{flex:1 1 auto; min-height:120px; overflow-y:auto; resize:none}
-/* На телефоне поле — во всю ширину экрана: выходит за боковые поля main (16px). */
-@media (max-width:640px){
-  #box,.diff-view{width:auto; margin:0 -16px; border-left:none; border-right:none; border-radius:0}
-  /* И до самого низа: нижнее поле main остаётся только под системную полоску iOS. */
-  main{padding-bottom:env(safe-area-inset-bottom)}
-}
-.diff-line{white-space:pre-wrap; word-break:break-all; padding:1px 6px; border-radius:4px}
-.diff-add{background:var(--add-bg); border-left:3px solid var(--accent)}
-.diff-del{background:var(--del-bg); border-left:3px solid var(--bad); text-decoration:line-through}
-/* Фокус — рамка темнеет и мягкий ореол, без жёсткой цветной обводки. Главному полю
-   ореол не нужен: оно и есть страница. */
-textarea:focus,input[type=text]:focus{outline:none; border-color:var(--muted); box-shadow:0 0 0 3px var(--ring)}
-#box:focus,.diff-view:focus{box-shadow:none}
-button{
-  font:inherit; font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
-  border:1px solid var(--line); border-radius:9px; padding:11px 16px; cursor:pointer;
-  min-height:44px; transition:background-color .15s, opacity .15s, box-shadow .15s;
-}
-/* :where — нулевая специфичность: любое правило с классом (primary, icon, seg, link…)
-   перекрывает эти общие состояния. */
-:where(button:hover:not(:disabled)){background:var(--bg)}
-:where(button:focus-visible){outline:none; box-shadow:0 0 0 3px var(--ring)}
-button.primary{background:var(--primary); color:var(--primary-ink); border-color:transparent}
-button.primary:hover:not(:disabled){opacity:.88}
-button.primary:disabled{opacity:.45; cursor:default}
-button.warn{background:var(--warn); color:var(--warn-ink); border-color:transparent}
-button.warn:disabled{opacity:.45; cursor:default}
-button.icon{border-radius:999px; padding:0; width:44px; display:inline-flex; align-items:center; justify-content:center; border-color:transparent; background:transparent; -webkit-tap-highlight-color:transparent}
-button.icon:focus-visible{background:var(--bg); outline:none}
-@media (hover:hover){button.icon:hover:not(:disabled){background:var(--bg)}}
-button.icon:active:not(:disabled){background:var(--line)}
-button.icon svg{width:20px; height:20px; display:block}
-/* Один контурный набор (Lucide): одна толщина линии и один оптический размер у всех иконок. */
-button.icon svg,.seg button svg{
-  fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
-}
-button.icon:disabled{opacity:.45; cursor:default}
-.file{display:flex; gap:10px; align-items:center; border-top:1px solid var(--line); padding:7px 0}
-.file .link{text-align:left; word-break:break-all; padding:6px 0}
-.file .size{font-size:13px; color:var(--muted); flex:none}
-#files{margin-top:10px}
-button.link{background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 4px; min-height:0}
-button.link:hover{color:var(--ink)}
-.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-.row.end{justify-content:flex-end}
-.row.center{justify-content:center}
-.row.spaced{margin-top:24px}
-.grow{flex:1 1 auto}
-/* Local / Diff / Shared: одна кнопка-пилюля из трёх сегментов. Активный — серым. */
-.seg{display:inline-flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; flex:none}
-.seg button{border:none; border-radius:0; padding:0 clamp(8px, 3vw, 14px); font-size:14px; background:var(--card);
-  display:inline-flex; align-items:center; gap:6px; min-height:42px}
-.seg button svg{width:16px; height:16px; display:block; flex:none}
-/* Local и Shared — прежние залитые иконки Material (Shared — контурный вариант облака). */
-.seg button svg.solid{fill:currentColor; stroke:none}
 .seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--seg-on); color:var(--ink); font-weight:600}
-.seg button:disabled{opacity:.45; cursor:default}
-/* Зазоры тулбара и сегментов сжимаются вместе с экраном; перенос на вторую строку запрещён. */
-.toolbar{gap:clamp(2px, 1.5vw, 8px); flex-wrap:nowrap; container-type:inline-size}
-/* Подписи прячем по ширине самого тулбара, а не экрана: с подписями ему нужно ~475px,
-   а карточка с рамкой и полями бывает уже при широком окне. Подпись остаётся в title и aria-label. */
-@container (max-width:450px){
-  .seg button .lbl{display:none}
+.seg button[aria-pressed="true"]{font-weight:600; color:var(--ink); background:var(--seg-on)}
+/* Labels go by the width of the toolbar itself, not of the screen: a bordered card can be
+   narrow in a wide window. With labels the toolbar needs 470px (segments at full padding,
+   four 44px icons and five 8px gaps, measured in Segoe UI); 480px leaves room for wider
+   system fonts. Below that each label lives on in title and aria-label. */
+@container (width < 480px){
+  .seg .label{display:none}
 }
+button.icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  padding:0;
+  background:transparent;
+  border-color:transparent;
+  border-radius:999px;
+  -webkit-tap-highlight-color:transparent;
+}
+button.icon:focus-visible{background:var(--bg)}
+@media (hover:hover){
+  button.icon:hover:not(:disabled){background:var(--bg)}
+}
+button.icon:active:not(:disabled){background:var(--line)}
+button.icon svg{display:block; width:20px; height:20px}
+.seg button svg{display:block; flex:none; width:16px; height:16px}
+/* Lucide outline icons, all at one stroke width. The two exceptions, Local (a laptop) and
+   Shared (a cloud outline), are filled Material glyphs and marked svg.solid. */
+button.icon svg,.seg button svg{
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.seg button svg.solid{fill:currentColor; stroke:none}
 .menu-host{position:relative; flex:none}
 .menu{
-  position:absolute; right:0; top:calc(100% + 6px); z-index:10; min-width:200px;
-  background:var(--card); border:1px solid var(--line); border-radius:9px; padding:4px;
-  box-shadow:0 6px 24px rgba(0,0,0,.18); display:flex; flex-direction:column;
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  z-index:10;
+  display:flex;
+  flex-direction:column;
+  min-width:200px;
+  padding:4px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:9px;
+  box-shadow:0 6px 24px rgba(0,0,0,.18);
 }
-.menu button{border:none; background:none; text-align:left; border-radius:6px; padding:9px 12px; min-height:0}
+.menu button{min-height:0; padding:9px 12px; text-align:left; background:none; border:none; border-radius:6px}
 .menu button:hover,.menu button:focus-visible{background:var(--bg)}
 .menu button.danger{color:var(--bad)}
-.check{display:flex; gap:9px; align-items:flex-start; font-size:14px; color:var(--muted); margin:18px 0 0; cursor:pointer}
-.check input{margin:3px 0 0; flex:none; width:17px; height:17px; accent-color:var(--ink)}
+
+/* --- editor --- */
+/* The "who · when" line: below the toolbar, above the field. */
+.meta{
+  margin:6px 0 8px;
+  overflow:hidden;
+  font-size:13px;
+  line-height:18px;
+  color:var(--muted);
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.meta span:not(:empty)~span:not(:empty)::before{content:' – '}
+/* Both are sized by the card's corner, not a corner of their own. */
+#box,.diff-view{flex:1 1 auto; min-height:120px; resize:none}
+/* The main field needs no halo: it is the page. */
+#box:focus{box-shadow:none}
+/* Shown instead of #box, not over it: a plain textarea cannot colour its own text line by
+   line, so the highlighted view and the editable field are two elements, switched with
+   hidden like the screens. */
+.diff-view{overflow-y:auto}
+.diff-line{padding:1px 6px; white-space:pre-wrap; word-break:break-all; border-radius:4px}
+.diff-add{background:var(--add-bg); border-left:3px solid var(--accent)}
+.diff-del{background:var(--del-bg); border-left:3px solid var(--bad); text-decoration:line-through}
+#files{margin-top:10px}
+.file{display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid var(--line)}
+.file .link{padding:6px 0; text-align:left; word-break:break-all}
+.file .size{flex:none; font-size:13px; color:var(--muted)}
+
+/* --- forms --- */
+.check{
+  display:flex;
+  align-items:flex-start;
+  gap:9px;
+  margin:18px 0 0;
+  font-size:14px;
+  color:var(--muted);
+  cursor:pointer;
+}
+.check input{flex:none; width:17px; height:17px; margin:3px 0 0; accent-color:var(--ink)}
+.note{margin:10px 0 0; font-size:13px; color:var(--muted)}
+.status{min-height:20px; margin-top:10px; font-size:13px; color:var(--muted)}
+
+/* --- pairing --- */
 /* Black on white whatever the theme: a scanner needs the light quiet zone, and on a
    dark card a transparent background would invert it. */
-.qr{background:#fff; border-radius:9px; padding:10px; width:360px; max-width:100%;
-    margin:0 auto 6px; display:none}
+.qr{width:360px; max-width:100%; margin:0 auto 6px; padding:10px; background:#fff; border-radius:9px}
 .qr svg{display:block; width:100%; height:auto}
+/* Larger, yet still one line on a phone: 23 monospace characters come to about 14em. */
 .code{
-  /* Крупнее, но в одну строку и на телефоне: 23 знака моноширинного ≈ 14em. */
-  font:700 clamp(18px, 5.4vw, 24px)/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  letter-spacing:.05em; white-space:nowrap; text-align:center; margin:0 0 14px;
+  margin:0 0 14px;
+  font:700 clamp(18px, 5.4vw, 24px)/1.5 var(--mono);
+  letter-spacing:.05em;
+  text-align:center;
+  white-space:nowrap;
 }
-.note{font-size:13px; color:var(--muted); margin:10px 0 0}
-.status{font-size:13px; color:var(--muted); min-height:20px; margin-top:10px}
-.status.bad{color:var(--bad)}
-.note.bad{color:var(--bad)}
+
+/* --- utilities --- */
+.spaced{margin-top:24px}
+.bad{color:var(--bad)}
+/* Out of sight but still selectable: the copy fallback in app.js selects text in it. */
 .offscreen{position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none}
+
+/* --- phone --- */
+@media (max-width:640px){
+  /* Below main's own max-width the card fills the screen anyway, and its border,
+     background and padding would be a frame inside a frame. Fields and buttons outline
+     themselves. */
+  .card{padding:0; background:none; border:none}
+  .screen[data-screen="main"] .card{margin-bottom:0}
+  /* The field runs the full width of the screen, out past main's side gutters… */
+  #box,.diff-view{
+    width:auto;
+    margin:0 calc(-1 * var(--gutter));
+    border-right:none;
+    border-left:none;
+    border-radius:0;
+  }
+  /* …and down to the very bottom: main keeps bottom padding only for the iOS home bar. */
+  main{padding-bottom:env(safe-area-inset-bottom)}
+}
 </style>
 </head>
 <body>
@@ -193,25 +328,27 @@ button.link:hover{color:var(--ink)}
     <p id="pair-note">Create a code on your own PC, then type that same code once on the
        work machine. Add your phone later with the same code if you want it there too.</p>
     <div class="row">
-      <button class="primary" id="btn-create">Create a new code</button>
-      <button id="btn-have">I have a code</button>
+      <button type="button" class="primary" id="btn-create">Create a new code</button>
+      <button type="button" id="btn-have">I have a code</button>
     </div>
   </div>
 </div>
 
 <div class="screen" data-screen="created" hidden>
   <div class="card">
-    <div class="qr" id="qr"></div>
+    <div class="qr" id="qr" hidden></div>
     <div class="code" id="new-code"></div>
     <div class="row center">
-      <button id="btn-copy-code">Copy code</button>
-      <button id="btn-copy-link">Copy link</button>
+      <button type="button" id="btn-copy-code">Copy code</button>
+      <button type="button" id="btn-copy-link">Copy link</button>
     </div>
     <p class="note bad">Code never stored here and cannot be shown again.</p>
     <p class="note">On the work machine, <strong>type this code instead of opening a
        link</strong> — links land in browser history and managed-browser reporting,
        fragment and all.</p>
-    <div class="row end spaced"><button class="warn" id="btn-created-go">Continue</button></div>
+    <div class="row end spaced">
+      <button type="button" class="warn" id="btn-created-go">Continue</button>
+    </div>
   </div>
   <div class="status" id="created-status"></div>
 </div>
@@ -219,14 +356,14 @@ button.link:hover{color:var(--ink)}
 <div class="screen" data-screen="enter" hidden>
   <div class="card">
     <h2>Enter your code</h2>
-    <input type="text" id="code-input" inputmode="latin" autocomplete="off"
+    <input type="text" id="code-input" inputmode="text" autocomplete="off"
            autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX">
     <label class="check"><input type="checkbox" id="chk-remember" checked>
       <span>Stay signed in on this device. Leave this off on a shared or managed machine —
         the stored key can read everything sent later, not just what is here now.</span></label>
     <div class="row end">
-      <button id="btn-enter-back">Back</button>
-      <button class="primary" id="btn-enter-go">Continue</button>
+      <button type="button" id="btn-enter-back">Back</button>
+      <button type="button" class="primary" id="btn-enter-go">Continue</button>
     </div>
     <div class="status" id="enter-status"></div>
   </div>
@@ -236,51 +373,60 @@ button.link:hover{color:var(--ink)}
   <div class="card">
     <div class="row toolbar">
       <div class="seg" role="group" aria-label="Which version to show">
-        <button type="button" id="view-old" aria-pressed="true" aria-label="Local"
-                title="Your version — the one Save sends"><svg class="solid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
-        </svg><span class="lbl">Local</span></button>
+        <button type="button" id="view-local" aria-pressed="true" aria-label="Local"
+                title="Your version — the one Save sends">
+          <svg class="solid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
+          </svg>
+          <span class="label">Local</span>
+        </button>
         <button type="button" id="view-diff" aria-pressed="false" aria-label="Diff"
-                title="What the newer version changes in yours"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>
-        </svg><span class="lbl">Diff</span></button>
-        <button type="button" id="view-new" aria-pressed="false" aria-label="Shared"
-                title="The version that came in — editing it makes it yours"><svg class="solid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
-        </svg><span class="lbl">Shared</span></button>
+                title="What the newer version changes in yours">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>
+          </svg>
+          <span class="label">Diff</span>
+        </button>
+        <button type="button" id="view-shared" aria-pressed="false" aria-label="Shared"
+                title="The version that came in — editing it makes it yours">
+          <svg class="solid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
+          </svg>
+          <span class="label">Shared</span>
+        </button>
       </div>
       <span class="grow"></span>
       <input type="file" id="file-input" multiple hidden>
-      <button class="icon" id="btn-attach" aria-label="Attach a file" title="Attach a file">
+      <button type="button" class="icon" id="btn-attach" aria-label="Attach a file" title="Attach a file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
         </svg>
       </button>
-      <button class="icon" id="btn-pull" aria-label="Pull" title="Pull">
+      <button type="button" class="icon" id="btn-pull" aria-label="Pull" title="Pull">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>
         </svg>
       </button>
-      <button class="icon" id="btn-save" disabled aria-label="Save" title="Save">
+      <button type="button" class="icon" id="btn-save" disabled aria-label="Save" title="Save">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>
         </svg>
       </button>
       <div class="menu-host">
-        <button class="icon" id="btn-menu" aria-label="Menu" title="Menu"
+        <button type="button" class="icon" id="btn-menu" aria-label="Menu" title="Menu"
                 aria-haspopup="menu" aria-expanded="false" aria-controls="menu">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
           </svg>
         </button>
         <div class="menu" id="menu" role="menu" hidden>
-          <button role="menuitem" id="btn-settings">Settings</button>
-          <button role="menuitem" id="btn-repair">New code</button>
-          <button role="menuitem" class="danger" id="btn-unlink">Unlink this device</button>
+          <button type="button" role="menuitem" id="btn-settings">Settings</button>
+          <button type="button" role="menuitem" id="btn-repair">New code</button>
+          <button type="button" role="menuitem" class="danger" id="btn-unlink">Unlink this device</button>
         </div>
       </div>
     </div>
-    <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
+    <div class="meta"><span id="from"></span><span id="age"></span><span id="main-status"></span></div>
     <textarea id="box" placeholder="Nothing here yet. Type something and press Save."
               autocomplete="off" spellcheck="false"></textarea>
     <div class="diff-view" id="diff-view" hidden>
@@ -304,12 +450,13 @@ button.link:hover{color:var(--ink)}
     <label class="check"><input type="checkbox" id="chk-auto">
       <span>Check for new text automatically</span></label>
     <p class="note" id="auto-note"></p>
-    <div class="row end"><button class="primary" id="btn-settings-back">Done</button></div>
+    <div class="row end">
+      <button type="button" class="primary" id="btn-settings-back">Done</button>
+    </div>
   </div>
 </div>
 
 </main>
-<script>document.addEventListener('touchstart',function(){},{passive:true})</script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
