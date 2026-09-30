@@ -208,7 +208,7 @@ const VIEWS = ['old', 'diff', 'new'];
 
 // The diff is shown instead of the box rather than merged into it: a plain textarea
 // cannot color part of its own value, so the highlighted view and the editable box are
-// two elements, toggled like the tab-name display/input pair above.
+// two elements, toggled with hidden like the screens.
 function renderView() {
   const tooBig = state.ours.length + state.remote.length > MAX_DIFF_CHARS;
   // The switcher stays put; with nothing to compare only Local makes sense.
@@ -396,49 +396,25 @@ const tabStore = {
   set(key, value) { try { sessionStorage.setItem(key, value); } catch (err) { /* приватный режим */ } },
 };
 
+// Поле — в настройках; имя видно только в заголовке вкладки браузера.
 function applyName(name) {
   state.name = name;
   const field = $('tab-name');
-  const display = $('tab-name-display');
-  field.value = name;
+  if (field.value !== name) field.value = name;
   field.placeholder = DEFAULT_TITLE;
-  // Ширина по содержимому: растянутое на всю ширину поле выглядит как форма, а не как
-  // заголовок. size работает везде, в отличие от field-sizing:content.
-  field.size = Math.max(6, Math.min(40, (name || DEFAULT_TITLE).length + 1));
-  display.textContent = name || DEFAULT_TITLE;
-  display.classList.toggle('placeholder', !name);
   document.title = name || DEFAULT_TITLE;
 }
 
 applyName(tabStore.get(TAB_NAME_KEY) || '');
 
-// Текст по умолчанию, редактирование — по клику; переключение через hidden, как экраны.
-function enterEdit() {
-  $('tab-name-display').hidden = true;
-  const field = $('tab-name');
-  field.hidden = false;
-  field.focus();
-  field.select();
-}
-function exitEdit() {
-  $('tab-name').hidden = true;
-  $('tab-name-display').hidden = false;
-}
-
-$('tab-name-display').addEventListener('click', enterEdit);
-
 $('tab-name').addEventListener('input', () => {
-  applyName($('tab-name').value);
-  tabStore.set(TAB_NAME_KEY, state.name.trim());
+  const name = $('tab-name').value.trim();
+  state.name = name;
+  document.title = name || DEFAULT_TITLE;
+  tabStore.set(TAB_NAME_KEY, name);
 });
 
-for (const event of ['blur', 'change']) {
-  $('tab-name').addEventListener(event, () => {
-    applyName($('tab-name').value.trim());
-    tabStore.set(TAB_NAME_KEY, state.name);
-    exitEdit();
-  });
-}
+$('tab-name').addEventListener('change', () => applyName($('tab-name').value.trim()));
 
 $('tab-name').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') $('tab-name').blur();
@@ -506,49 +482,61 @@ $('chk-auto').addEventListener('change', () => {
 
 // --- размер карточки ---------------------------------------------------------
 // Родной уголок textarea выключен: тянем за угол самой карточки, и поле растёт вместе с
-// ней. Высота своя у каждой вкладки, поэтому sessionStorage.
+// ней — и в высоту, и в ширину. Размер свой у каждой вкладки, поэтому sessionStorage.
 
 const CARD_HEIGHT_KEY = 'card-height';
+const CARD_WIDTH_KEY = 'card-width';
 const MIN_CARD_HEIGHT = 240;
+const MIN_CARD_WIDTH = 360;
 const card = () => $('grip').parentElement;
 
-function applyCardHeight(px) {
+// 0 — размер по умолчанию. Шире main карточка может быть: align-self:center в колонке
+// .screen центрирует её и при переполнении, поровну в обе стороны.
+function applyCardSize({ w, h }) {
   const el = card();
-  if (px) {
-    el.style.flex = 'none';
-    el.style.height = px + 'px';
-  } else {
-    el.style.flex = '';
-    el.style.height = '';
-  }
+  el.style.flex = h ? 'none' : '';
+  el.style.height = h ? h + 'px' : '';
+  el.style.width = w ? w + 'px' : '';
+  el.style.alignSelf = w ? 'center' : '';
+  el.style.maxWidth = w ? 'calc(100vw - 32px)' : '';
 }
 
-applyCardHeight(Number(tabStore.get(CARD_HEIGHT_KEY)) || 0);
+applyCardSize({
+  w: Number(tabStore.get(CARD_WIDTH_KEY)) || 0,
+  h: Number(tabStore.get(CARD_HEIGHT_KEY)) || 0,
+});
 
 $('grip').addEventListener('pointerdown', (event) => {
   event.preventDefault();
   // Захват курсора, иначе перетаскивание рвётся, стоит выйти за пределы хвата.
   $('grip').setPointerCapture(event.pointerId);
+  const startX = event.clientX;
   const startY = event.clientY;
-  const startHeight = card().getBoundingClientRect().height;
+  const start = card().getBoundingClientRect();
 
   const onMove = (move) => {
-    const height = Math.max(MIN_CARD_HEIGHT, Math.round(startHeight + move.clientY - startY));
-    applyCardHeight(height);
+    const h = Math.max(MIN_CARD_HEIGHT, Math.round(start.height + move.clientY - startY));
+    // Карточка растёт от центра, так что ×2 — иначе уголок отстаёт от курсора.
+    const w = Math.min(innerWidth - 32,
+      Math.max(MIN_CARD_WIDTH, Math.round(start.width + 2 * (move.clientX - startX))));
+    applyCardSize({ w, h });
   };
   const onUp = () => {
     $('grip').removeEventListener('pointermove', onMove);
     $('grip').removeEventListener('pointerup', onUp);
-    tabStore.set(CARD_HEIGHT_KEY, String(Math.round(card().getBoundingClientRect().height)));
+    const size = card().getBoundingClientRect();
+    tabStore.set(CARD_HEIGHT_KEY, String(Math.round(size.height)));
+    tabStore.set(CARD_WIDTH_KEY, String(Math.round(size.width)));
   };
   $('grip').addEventListener('pointermove', onMove);
   $('grip').addEventListener('pointerup', onUp);
 });
 
-// Двойной клик возвращает карточку к «во весь экран».
+// Двойной клик возвращает карточку к размеру по умолчанию.
 $('grip').addEventListener('dblclick', () => {
-  applyCardHeight(0);
+  applyCardSize({ w: 0, h: 0 });
   tabStore.set(CARD_HEIGHT_KEY, '');
+  tabStore.set(CARD_WIDTH_KEY, '');
 });
 
 // --- клавиатура на телефоне ---------------------------------------------------

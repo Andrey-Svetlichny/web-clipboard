@@ -17,12 +17,15 @@
   --bg:#f7f7f5; --card:#fff; --ink:#15181d; --muted:#666f7a; --line:#dfe1e4;
   --accent:#2f6d4f; --accent-ink:#fff; --bad:#8c2f2f; --warn:#a15c07; --warn-ink:#fff;
   --add-bg:#e3f3e9; --del-bg:#fbe9e9; --seg-on:#e6e8eb;
+  /* Главная кнопка — цветом текста, а не акцентом: зелёный остаётся только у diff. */
+  --primary:var(--ink); --primary-ink:var(--card); --ring:rgba(21,24,29,.10);
 }
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#11151a; --card:#191e25; --ink:#e8eaed; --muted:#9aa4b0; --line:#2a313a;
     --accent:#4c9c74; --accent-ink:#08120c; --bad:#e08a8a; --warn:#e3a869; --warn-ink:#241506;
     --add-bg:#173425; --del-bg:#3a1f1f; --seg-on:#2c333d;
+    --ring:rgba(232,234,237,.14);
   }
 }
 *{box-sizing:border-box}
@@ -53,31 +56,7 @@ p{margin:0 0 12px; color:var(--muted); font-size:14px}
   .card{background:none; border:none; padding:0}
   .screen[data-screen="main"] .card{margin-bottom:0}
 }
-.card-head{display:flex; align-items:center; gap:8px; margin-bottom:10px}
-/* Заголовок и строка «кто · когда» — одна колонка высотой с круглые кнопки справа. */
-.head-text{flex:1 1 auto; min-width:0; display:flex; flex-direction:column}
-.card-head h2{margin:0; line-height:24px}
-/* Тег в селекторе обязателен: правило textarea,input[type=text] специфичнее простого
-   класса и иначе вернуло бы полю рамку и фон.
-   Ширина — по содержимому через атрибут size: растянутое на всю ширину поле подсвечивалось
-   при наведении серой полосой и читалось как форма, а не как заголовок. */
-input.tab-name{
-  width:auto; max-width:100%; font:600 16px/1.5 inherit; color:var(--ink);
-  background:none; border:none; border-radius:7px; padding:3px 7px; margin:-3px -7px;
-  text-overflow:ellipsis;
-}
-input.tab-name::placeholder{color:var(--muted); font-weight:400}
-input.tab-name:hover{background:var(--bg); cursor:text}
-input.tab-name:focus{background:var(--bg); outline:2px solid var(--accent); outline-offset:-1px}
-.tab-name-display{
-  display:inline-block; max-width:100%; min-height:auto;
-  font:600 16px/1.5 inherit; color:var(--ink); text-align:left;
-  background:none; border:none; border-radius:7px; padding:3px 7px; margin:-3px -7px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;
-}
-.tab-name-display.placeholder{color:var(--muted); font-weight:400}
-.tab-name-display:hover{background:var(--bg)}
-.tab-name-display:focus-visible{background:var(--bg); outline:2px solid var(--accent); outline-offset:-1px}
+h2.spaced{margin-top:24px}
 /* Только там, где есть мышь: на телефоне карточка и так во весь экран. */
 .grip{display:none}
 @media (hover:hover) and (pointer:fine){
@@ -90,7 +69,8 @@ input.tab-name:focus{background:var(--bg); outline:2px solid var(--accent); outl
   }
   .grip:hover{filter:brightness(1.6)}
 }
-.meta{font-size:13px; line-height:18px; color:var(--muted); margin:0;
+/* Строка «кто · когда» — под тулбаром, над полем. */
+.meta{font-size:13px; line-height:18px; color:var(--muted); margin:6px 0 8px;
        white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .meta span:not(:empty)~span:not(:empty)::before{content:' – '}
 .meta #send-status.bad{color:var(--bad)}
@@ -98,13 +78,14 @@ textarea,input[type=text],.diff-view{
   width:100%; font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--ink); background:var(--bg); border:1px solid var(--line);
   border-radius:9px; padding:11px 12px; resize:vertical;
+  transition:border-color .15s, box-shadow .15s;
 }
 textarea{min-height:180px; resize:vertical}
 /* Размер тянется за угол карточки, а не за собственный уголок поля. */
 #box{flex:1 1 auto; min-height:120px; resize:none}
 /* Показывается вместо #box, не поверх: обычная textarea не умеет красить свой текст
    построчно, так что подсвеченный вид и редактируемое поле — два разных элемента,
-   переключаемые через hidden, как пара tab-name-display/tab-name выше. */
+   переключаемые через hidden, как экраны. */
 .diff-view{flex:1 1 auto; min-height:120px; overflow-y:auto; resize:none}
 /* На телефоне поле — во всю ширину экрана: выходит за боковые поля main (16px). */
 @media (max-width:640px){
@@ -115,14 +96,21 @@ textarea{min-height:180px; resize:vertical}
 .diff-line{white-space:pre-wrap; word-break:break-all; padding:1px 6px; border-radius:4px}
 .diff-add{background:var(--add-bg); border-left:3px solid var(--accent)}
 .diff-del{background:var(--del-bg); border-left:3px solid var(--bad); text-decoration:line-through}
-textarea:focus,input[type=text]:focus{outline:2px solid var(--accent); outline-offset:-1px}
+/* Фокус — рамка темнеет и мягкий ореол, без жёсткой цветной обводки. Главному полю
+   ореол не нужен: оно и есть страница. */
+textarea:focus,input[type=text]:focus{outline:none; border-color:var(--muted); box-shadow:0 0 0 3px var(--ring)}
+#box:focus,.diff-view:focus{box-shadow:none}
 button{
   font:inherit; font-size:15px; font-weight:500; color:var(--ink); background:var(--card);
   border:1px solid var(--line); border-radius:9px; padding:11px 16px; cursor:pointer;
-  min-height:44px;
+  min-height:44px; transition:background-color .15s, opacity .15s, box-shadow .15s;
 }
-button:hover{border-color:var(--muted)}
-button.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+/* :where — нулевая специфичность: любое правило с классом (primary, icon, seg, link…)
+   перекрывает эти общие состояния. */
+:where(button:hover:not(:disabled)){background:var(--bg)}
+:where(button:focus-visible){outline:none; box-shadow:0 0 0 3px var(--ring)}
+button.primary{background:var(--primary); color:var(--primary-ink); border-color:transparent}
+button.primary:hover:not(:disabled){opacity:.88}
 button.primary:disabled{opacity:.45; cursor:default}
 button.warn{background:var(--warn); color:var(--warn-ink); border-color:transparent}
 button.warn:disabled{opacity:.45; cursor:default}
@@ -139,13 +127,11 @@ button.icon:disabled{opacity:.45; cursor:default}
 button.link{background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 4px; min-height:0}
 button.link:hover{color:var(--ink)}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-.card-head+.row{margin-bottom:12px}
 .row.end{justify-content:flex-end}
 .row.center{justify-content:center}
 .row.spaced{margin-top:24px}
 .grow{flex:1 1 auto}
-/* Local / Diff / Shared: одна кнопка-пилюля из трёх сегментов. Активный — серым: акцент
-   остаётся только у Send. */
+/* Local / Diff / Shared: одна кнопка-пилюля из трёх сегментов. Активный — серым. */
 .seg{display:inline-flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; flex:none}
 .seg button{border:none; border-radius:0; padding:0 clamp(8px, 3vw, 14px); font-size:14px; background:var(--card);
   display:inline-flex; align-items:center; gap:6px; min-height:42px}
@@ -170,7 +156,7 @@ button.link:hover{color:var(--ink)}
 .menu button:hover,.menu button:focus-visible{background:var(--bg)}
 .menu button.danger{color:var(--bad)}
 .check{display:flex; gap:9px; align-items:flex-start; font-size:14px; color:var(--muted); margin:12px 0 0; cursor:pointer}
-.check input{margin:3px 0 0; flex:none; width:17px; height:17px}
+.check input{margin:3px 0 0; flex:none; width:17px; height:17px; accent-color:var(--ink)}
 /* Black on white whatever the theme: a scanner needs the light quiet zone, and on a
    dark card a transparent background would invert it. */
 .qr{background:#fff; border-radius:9px; padding:10px; width:360px; max-width:100%;
@@ -241,15 +227,6 @@ button.link:hover{color:var(--ink)}
 
 <div class="screen" data-screen="main" hidden>
   <div class="card">
-    <div class="card-head">
-      <div class="head-text">
-        <h2><button type="button" class="tab-name-display" id="tab-name-display"
-                    title="Rename this tab"></button><input class="tab-name" id="tab-name" type="text" maxlength="40"
-                   autocomplete="off" spellcheck="false"
-                   aria-label="Name for this tab" title="Rename this tab" hidden></h2>
-        <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
-      </div>
-    </div>
     <div class="row toolbar">
       <div class="seg" role="group" aria-label="Which version to show">
         <button type="button" id="view-old" aria-pressed="true" aria-label="Local"
@@ -296,6 +273,7 @@ button.link:hover{color:var(--ink)}
         </div>
       </div>
     </div>
+    <div class="meta"><span id="from"></span><span id="age"></span><span id="send-status"></span></div>
     <textarea id="box" placeholder="Nothing here yet. Type something and press Save."
               autocomplete="off" spellcheck="false"></textarea>
     <div class="diff-view" id="diff-view" hidden>
@@ -308,9 +286,12 @@ button.link:hover{color:var(--ink)}
 
 <div class="screen" data-screen="settings" hidden>
   <div class="card">
-    <h2>Device name</h2>
-    <p>Shown to your other devices next to the browser, so you can tell which one sent
-       what. It never leaves the encrypted payload.</p>
+    <h2>Browser tab name</h2>
+    <p>Local only</p>
+    <input type="text" id="tab-name" maxlength="40" autocomplete="off" spellcheck="false"
+           aria-label="Browser tab name">
+    <h2 class="spaced">Device name</h2>
+    <p>Shown remotely (encrypted)</p>
     <input type="text" id="device-name" maxlength="32" autocomplete="off"
            placeholder="This computer" aria-label="Name for this device">
     <label class="check"><input type="checkbox" id="chk-auto">
