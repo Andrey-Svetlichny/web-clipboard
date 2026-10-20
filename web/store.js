@@ -55,9 +55,9 @@ export async function loadDevice() {
 
 // Whether to write at all is the caller's decision: what arrives here is the finished
 // record. Errors are not swallowed, since the caller has something to tell the user.
-export async function saveDevice({ roomKey, encKey, seqs, deviceName, autoRefresh, deviceId }) {
+export async function saveDevice({ roomKey, encKey, seqs, deviceName, pollSeconds, deviceId }) {
   await tx('readwrite',
-    (store) => store.put({ roomKey, encKey, seqs, deviceName, autoRefresh, deviceId }, DB_KEY));
+    (store) => store.put({ roomKey, encKey, seqs, deviceName, pollSeconds, deviceId }, DB_KEY));
 }
 
 export async function wipeDevice() {

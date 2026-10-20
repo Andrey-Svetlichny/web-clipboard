@@ -96,7 +96,7 @@ button.link{
 }
 button.link:hover{color:var(--ink)}
 /* Every field looks the same, and so does the diff view that stands in for the main one. */
-textarea,input[type=text],.diff-view{
+textarea,input[type=text],input[type=number],.diff-view{
   width:100%;
   padding:11px 12px;
   font:16px/1.45 var(--mono);
@@ -107,11 +107,13 @@ textarea,input[type=text],.diff-view{
   transition:border-color .15s, box-shadow .15s;
 }
 /* Focus darkens the border and adds a soft halo, rather than a hard coloured outline. */
-textarea:focus,input[type=text]:focus{
+textarea:focus,input[type=text]:focus,input[type=number]:focus{
   outline:none;
   border-color:var(--muted);
   box-shadow:0 0 0 3px var(--ring);
 }
+input[type=number]{width:8em}
+input:disabled{opacity:.45}
 
 /* --- layout --- */
 /* dvh, not vh: on a phone vh is measured against the screen without the browser's
@@ -447,8 +449,9 @@ button.icon svg,.seg button svg{
     <p>Shown remotely (encrypted)</p>
     <input type="text" id="device-name" maxlength="32" autocomplete="off"
            placeholder="This computer" aria-label="Name for this device">
-    <label class="check"><input type="checkbox" id="chk-auto">
-      <span>Check for new text automatically</span></label>
+    <h2 class="spaced">Check for new text every</h2>
+    <input type="number" id="poll-seconds" min="0" max="3600" step="1" inputmode="numeric"
+           aria-label="Seconds between checks, 0 for never">
     <p class="note" id="auto-note"></p>
     <div class="row end">
       <button type="button" class="primary" id="btn-settings-back">Done</button>

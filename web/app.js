@@ -28,7 +28,8 @@ const state = {
   // rather than against the previous one received. Editing Shared makes it ours.
   ours: '',
   // Device settings: one set for every tab, kept in the record alongside the keys.
-  deviceName: '', autoRefresh: false,
+  // pollSeconds: 0 means never check on its own.
+  deviceName: '', pollSeconds: 0,
   // Random, never shown: marks our own records so they read "You" (see api.js sendText).
   deviceId: '',
 };
@@ -674,23 +675,39 @@ if (channel) {
   };
 }
 
+// The room allows 120 requests per 10 minutes, one per 5 seconds on average: below that
+// a tab left polling for long will eventually be rate-limited.
+const MIN_POLL_S = 3;
+const MAX_POLL_S = 3600;
+
+// 0 stays 0 (never); anything else is a whole number of seconds within the limits.
+function clampPoll(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(MAX_POLL_S, Math.max(MIN_POLL_S, n));
+}
+
 function applySettings(saved) {
   state.deviceName = typeof saved.deviceName === 'string' ? saved.deviceName : '';
-  state.autoRefresh = saved.autoRefresh === true;
+  // Records from before the interval had a checkbox that meant every 10 seconds.
+  state.pollSeconds = 'pollSeconds' in saved
+    ? clampPoll(saved.pollSeconds) : (saved.autoRefresh === true ? 10 : 0);
   renderSettings();
   schedulePolling();
 }
 
 function renderSettings() {
   $('device-name').value = state.deviceName;
-  $('chk-auto').checked = state.autoRefresh && state.persist;
+  $('poll-seconds').value = state.persist ? state.pollSeconds : 0;
   // On a work VM the device is not remembered, so there is nowhere to keep the setting
   // and polling never starts. That is a property of the code, not of the user's care.
-  $('chk-auto').disabled = !state.persist;
-  $('auto-note').textContent = state.persist
-    ? 'Checks every ' + (POLL_MS / 1000) + ' seconds while this tab is in front.'
-    : 'Not available: this device is not being remembered, so nothing about it is '
-      + 'stored here — which is what you want on a machine you do not own.';
+  $('poll-seconds').disabled = !state.persist;
+  $('auto-note').textContent = !state.persist
+    ? 'Not available: this device is not being remembered, so nothing about it is '
+      + 'stored here — which is what you want on a machine you do not own.'
+    : state.pollSeconds
+      ? 'Checks every ' + state.pollSeconds + ' seconds while this tab is in front.'
+      : 'Seconds between checks; 0 — never checks on its own.';
 }
 
 function saveSettings() {
@@ -699,7 +716,7 @@ function saveSettings() {
   if (channel) {
     channel.postMessage({
       kind: 'settings',
-      settings: { deviceName: state.deviceName, autoRefresh: state.autoRefresh },
+      settings: { deviceName: state.deviceName, pollSeconds: state.pollSeconds },
     });
   }
   return saveState();
@@ -717,8 +734,8 @@ $('device-name').addEventListener('change', () => {
   saveSettings();
 });
 
-$('chk-auto').addEventListener('change', () => {
-  state.autoRefresh = $('chk-auto').checked;
+$('poll-seconds').addEventListener('change', () => {
+  state.pollSeconds = clampPoll($('poll-seconds').value);
   saveSettings();
 });
 
@@ -812,7 +829,6 @@ if (window.visualViewport) {
 
 // --- polling ----------------------------------------------------------------
 
-const POLL_MS = 10_000;
 let pollTimer = null;
 
 // Only with a remembered device, and only while the tab is in front: a dozen background
@@ -820,9 +836,9 @@ let pollTimer = null;
 function schedulePolling() {
   clearInterval(pollTimer);
   pollTimer = null;
-  if (!state.autoRefresh || !state.persist || !state.roomKey) return;
+  if (!state.pollSeconds || !state.persist || !state.roomKey) return;
   if (document.visibilityState !== 'visible') return;
-  pollTimer = setInterval(() => refresh(true), POLL_MS);
+  pollTimer = setInterval(() => refresh(true), state.pollSeconds * 1000);
 }
 
 // "5 min ago" goes stale while the page sits open. A cheap local tick keeps it true

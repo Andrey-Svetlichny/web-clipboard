@@ -90,8 +90,9 @@ useful for getting an error message out. Same rules apply.
   open tabs can be told apart. It never leaves the browser.
 - **Device name** — shown remotely, encrypted: it travels inside the ciphertext as the
   "who" in the status line on the other devices.
-- **Check for new text automatically** — polls every few seconds while the tab is in
-  front. Only available on a device that stays signed in.
+- **Check for new text every N seconds** — polls at that interval while the tab is in
+  front; 0 means never, and the minimum is 3. Only available on a device that stays
+  signed in.
 
 **If you do use a phone, add it to the home screen.** Beyond convenience, iOS evicts
 stored data for sites not visited in a week unless they have been added to the Home
