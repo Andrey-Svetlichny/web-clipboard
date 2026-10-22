@@ -449,9 +449,10 @@ button.icon svg,.seg button svg{
     <p>Shown remotely (encrypted)</p>
     <input type="text" id="device-name" maxlength="32" autocomplete="off"
            placeholder="This computer" aria-label="Name for this device">
-    <h2 class="spaced">Check for new text every</h2>
+    <h2 class="spaced">Auto update interval</h2>
+    <p>Seconds between requests; 0 - never</p>
     <input type="number" id="poll-seconds" min="0" max="3600" step="1" inputmode="numeric"
-           aria-label="Seconds between checks, 0 for never">
+           aria-label="Seconds between requests, 0 for never">
     <p class="note" id="auto-note"></p>
     <div class="row end">
       <button type="button" class="primary" id="btn-settings-back">Done</button>

@@ -90,7 +90,7 @@ useful for getting an error message out. Same rules apply.
   open tabs can be told apart. It never leaves the browser.
 - **Device name** — shown remotely, encrypted: it travels inside the ciphertext as the
   "who" in the status line on the other devices.
-- **Check for new text every N seconds** — polls at that interval while the tab is in
+- **Auto update interval** — seconds between requests while the tab is in
   front; 0 means never, and the minimum is 3. Only available on a device that stays
   signed in.
 
