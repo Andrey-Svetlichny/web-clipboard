@@ -705,9 +705,7 @@ function renderSettings() {
   $('auto-note').textContent = !state.persist
     ? 'Not available: this device is not being remembered, so nothing about it is '
       + 'stored here — which is what you want on a machine you do not own.'
-    : state.pollSeconds
-      ? 'Checks every ' + state.pollSeconds + ' seconds while this tab is in front.'
-      : 'Seconds between checks; 0 — never checks on its own.';
+    : ''
 }
 
 function saveSettings() {
